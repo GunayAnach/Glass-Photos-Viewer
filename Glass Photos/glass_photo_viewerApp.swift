@@ -58,6 +58,8 @@ final class ViewerModel: ObservableObject {
     @Published var showInfoSidebar = false
     @Published var isLoadingExif = false
     @Published private(set) var currentImage: NSImage?
+    @Published var isRenaming = false
+    @Published var renameDraft = ""
     
     private var keyMonitor: Any?
     private let allowed = Set(["jpg","jpeg","png","webp","heic","heif","tiff","gif","bmp","dng","nef","cr2","arw","raf"])
@@ -225,6 +227,62 @@ final class ViewerModel: ObservableObject {
     func next() { show(index + 1) }
     func prev() { show(index - 1) }
     func toggleFit() { fitToWindow.toggle() }
+
+    func beginRenaming() {
+        guard let url = files[safe: index] else { return }
+        renameDraft = url.deletingPathExtension().lastPathComponent
+        isRenaming = true
+    }
+
+    func cancelRenaming() {
+        isRenaming = false
+        renameDraft = ""
+    }
+
+    func commitRename() {
+        guard let currentURL = files[safe: index] else { return }
+        do {
+            let renamedURL = try FileOperations.rename(currentURL, toBaseName: renameDraft)
+            files[index] = renamedURL
+            isRenaming = false
+            renameDraft = ""
+        } catch {
+            showFileOperationError(error)
+        }
+    }
+
+    func confirmDeleteCurrentFile() {
+        guard let currentURL = files[safe: index] else { return }
+        let alert = NSAlert()
+        alert.messageText = "Move “\(currentURL.lastPathComponent)” to the Trash?"
+        alert.informativeText = "You can recover it from the Trash until the Trash is emptied."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Move to Trash")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+        do {
+            try FileOperations.moveToTrash(currentURL)
+            files.remove(at: index)
+            if files.isEmpty {
+                index = 0
+                currentImage = nil
+                currentExifData = []
+            } else {
+                index = min(index, files.count - 1)
+                requestSelectedImage()
+                preloadExifData()
+            }
+        } catch {
+            showFileOperationError(error)
+        }
+    }
+
+    private func showFileOperationError(_ error: Error) {
+        let alert = NSAlert(error: error)
+        alert.runModal()
+    }
+
     func toggleFullScreen() { 
         NSApp.keyWindow?.toggleFullScreen(nil)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
@@ -456,10 +514,13 @@ final class ViewerModel: ObservableObject {
         guard keyMonitor == nil else { return }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] e in
             guard let self else { return e }
+            if self.isRenaming { return e }
             switch e.keyCode {
             case 123: self.prev(); return nil          // ←
             case 124: self.next(); return nil          // →
             case 49:  self.toggleFit(); return nil     // Space
+            case 36, 76: self.beginRenaming(); return nil // Return / keypad Enter
+            case 51, 117: self.confirmDeleteCurrentFile(); return nil // Delete / Forward Delete
             case 53:                                  // Esc
                 if NSApp.keyWindow?.styleMask.contains(.fullScreen) == true {
                     self.toggleFullScreen()
@@ -613,6 +674,11 @@ struct Viewer: View {
                         imageName: vm.files[safe: vm.index]?.lastPathComponent ?? "",
                         currentIndex: vm.index,
                         totalCount: vm.files.count,
+                        isRenaming: vm.isRenaming,
+                        renameText: $vm.renameDraft,
+                        onRenameStart: { vm.beginRenaming() },
+                        onRenameCommit: { vm.commitRename() },
+                        onRenameCancel: { vm.cancelRenaming() },
                         onFullScreen: {
                             isFullScreen = true
                             vm.toggleFullScreen()
@@ -824,19 +890,45 @@ struct TopHeader: View {
     let imageName: String
     let currentIndex: Int
     let totalCount: Int
+    let isRenaming: Bool
+    @Binding var renameText: String
+    let onRenameStart: () -> Void
+    let onRenameCommit: () -> Void
+    let onRenameCancel: () -> Void
     let onFullScreen: () -> Void
     let onInfoToggle: () -> Void
     let onShare: () -> Void
+    @FocusState private var renameFieldFocused: Bool
     
     var body: some View {
         HStack {
             // Image name and counter on the left
             HStack(spacing: 8) {
-                Text(imageName)
-                    .font(.headline)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .foregroundStyle(.white)
+                if isRenaming {
+                    HStack(spacing: 3) {
+                        TextField("File name", text: $renameText)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(minWidth: 180, maxWidth: 420)
+                            .focused($renameFieldFocused)
+                            .onSubmit(onRenameCommit)
+                            .onExitCommand(perform: onRenameCancel)
+                        let fileExtension = URL(fileURLWithPath: imageName).pathExtension
+                        if !fileExtension.isEmpty {
+                            Text(".\(fileExtension)")
+                                .font(.headline)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                } else {
+                    Text(imageName)
+                        .font(.headline)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .foregroundStyle(.white)
+                        .contentShape(Rectangle())
+                        .onTapGesture(perform: onRenameStart)
+                        .help("Click or press Return to rename")
+                }
                 
                 if totalCount > 1 {
                     Text("(\(currentIndex + 1)/\(totalCount))")
@@ -900,6 +992,11 @@ struct TopHeader: View {
                 .foregroundStyle(.separator),
             alignment: .bottom
         )
+        .onChange(of: isRenaming) { renaming in
+            if renaming {
+                DispatchQueue.main.async { renameFieldFocused = true }
+            }
+        }
     }
 }
 
