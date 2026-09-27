@@ -57,10 +57,12 @@ final class ViewerModel: ObservableObject {
     @Published var isLoading = false
     @Published var showInfoSidebar = false
     @Published var isLoadingExif = false
+    @Published private(set) var currentImage: NSImage?
     
     private var keyMonitor: Any?
     private let allowed = Set(["jpg","jpeg","png","webp","heic","heif","tiff","gif","bmp","dng","nef","cr2","arw","raf"])
-    private let cache = NSCache<NSURL, NSImage>()
+    private let imagePipeline = ImagePipeline()
+    private var imageRequestGeneration = 0
     
     // EXIF data for current image
     @Published var currentExifData: [(String, Any)] = []
@@ -84,6 +86,7 @@ final class ViewerModel: ObservableObject {
                 self.files = imageFiles
                 self.index = 0
                 self.isLoading = false
+                self.requestSelectedImage()
                 print("Loaded \(imageFiles.count) individual image files")
             }
             
@@ -149,7 +152,7 @@ final class ViewerModel: ObservableObject {
                     self.files = imgs
                     self.index = 0
                     self.isLoading = false
-                    self.preloadNeighbors()
+                    self.requestSelectedImage()
                     print("Folder loaded successfully, files count: \(self.files.count)")
                 }
             } catch {
@@ -190,7 +193,7 @@ final class ViewerModel: ObservableObject {
                     if !imgs.isEmpty, let selectedFile = selectedFile, let fileIndex = imgs.firstIndex(of: selectedFile) {
                         self.files = imgs
                         self.index = fileIndex
-                        self.preloadNeighbors()
+                        self.requestSelectedImage()
                         print("Folder loaded successfully, files count: \(self.files.count), current index: \(self.index)")
                     } else {
                         print("Selected file not found in folder or no images found")
@@ -208,7 +211,7 @@ final class ViewerModel: ObservableObject {
     func show(_ i: Int) {
         guard !files.isEmpty else { return }
         index = (i % files.count + files.count) % files.count
-        preloadNeighbors()
+        requestSelectedImage()
         preloadExifData()
     }
     
@@ -406,20 +409,30 @@ final class ViewerModel: ObservableObject {
         }
     }
 
-    // Image cache
-    func image(for url: URL) -> NSImage? {
-        if let img = cache.object(forKey: url as NSURL) { return img }
-        if let img = NSImage(contentsOf: url) {
-            cache.setObject(img, forKey: url as NSURL)
-            return img
+    // Decode the selected image off the main thread. The generation check keeps
+    // a slow, stale request from replacing a newer selection.
+    private func requestSelectedImage() {
+        guard !files.isEmpty, let selectedURL = files[safe: index] else {
+            currentImage = nil
+            return
         }
-        return nil
-    }
-    private func preloadNeighbors() {
-        guard !files.isEmpty else { return }
-        for delta in [-1, 1] {
-            let j = (index + delta + files.count) % files.count
-            _ = image(for: files[j])
+
+        imageRequestGeneration += 1
+        let generation = imageRequestGeneration
+        currentImage = imagePipeline.cachedImage(for: selectedURL)
+
+        imagePipeline.request(selectedURL) { [weak self] image in
+            guard let self,
+                  self.imageRequestGeneration == generation,
+                  self.files[safe: self.index] == selectedURL else { return }
+            self.currentImage = image
+        }
+
+        // The serial decode queue preserves this order: current, next, previous.
+        // That prioritizes the next likely navigation target without blocking UI.
+        for delta in [1, -1] where files.count > 1 {
+            let neighborIndex = (index + delta + files.count) % files.count
+            imagePipeline.request(files[neighborIndex]) { _ in }
         }
     }
     
@@ -477,6 +490,7 @@ final class ViewerModel: ObservableObject {
                 self.files = [first]
                 self.index = 0
                 self.isLoading = false
+                self.requestSelectedImage()
                 print("Opened single file: \(first.lastPathComponent)")
             }
         }
@@ -610,7 +624,7 @@ struct Viewer: View {
                 
                 // Main image view
                 GeometryReader { geo in
-                    if let url = vm.files[safe: vm.index], let nsimg = vm.image(for: url) {
+                    if let nsimg = vm.currentImage {
                         let imageView = Image(nsImage: nsimg).interpolation(.high).antialiased(true)
                         Group {
                             if vm.fitToWindow {
