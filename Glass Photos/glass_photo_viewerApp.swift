@@ -60,6 +60,7 @@ final class ViewerModel: ObservableObject {
     @Published private(set) var currentImage: NSImage?
     @Published var isRenaming = false
     @Published var renameDraft = ""
+    @Published var photoRotation = PhotoRotation()
     
     private var keyMonitor: Any?
     private let allowed = Set(["jpg","jpeg","png","webp","heic","heif","tiff","gif","bmp","dng","nef","cr2","arw","raf"])
@@ -87,6 +88,7 @@ final class ViewerModel: ObservableObject {
             DispatchQueue.main.async {
                 self.files = imageFiles
                 self.index = 0
+                self.photoRotation.reset()
                 self.isLoading = false
                 self.requestSelectedImage()
                 print("Loaded \(imageFiles.count) individual image files")
@@ -153,6 +155,7 @@ final class ViewerModel: ObservableObject {
                 DispatchQueue.main.async {
                     self.files = imgs
                     self.index = 0
+                    self.photoRotation.reset()
                     self.isLoading = false
                     self.requestSelectedImage()
                     print("Folder loaded successfully, files count: \(self.files.count)")
@@ -195,6 +198,7 @@ final class ViewerModel: ObservableObject {
                     if !imgs.isEmpty, let selectedFile = selectedFile, let fileIndex = imgs.firstIndex(of: selectedFile) {
                         self.files = imgs
                         self.index = fileIndex
+                        self.photoRotation.reset()
                         self.requestSelectedImage()
                         print("Folder loaded successfully, files count: \(self.files.count), current index: \(self.index)")
                     } else {
@@ -213,6 +217,7 @@ final class ViewerModel: ObservableObject {
     func show(_ i: Int) {
         guard !files.isEmpty else { return }
         index = (i % files.count + files.count) % files.count
+        photoRotation.reset()
         requestSelectedImage()
         preloadExifData()
     }
@@ -227,6 +232,14 @@ final class ViewerModel: ObservableObject {
     func next() { show(index + 1) }
     func prev() { show(index - 1) }
     func toggleFit() { fitToWindow.toggle() }
+
+    func rotateClockwise() {
+        photoRotation.rotateClockwise()
+    }
+
+    func rotateCounterClockwise() {
+        photoRotation.rotateCounterClockwise()
+    }
 
     func beginRenaming() {
         guard let url = files[safe: index] else { return }
@@ -270,6 +283,7 @@ final class ViewerModel: ObservableObject {
                 currentExifData = []
             } else {
                 index = min(index, files.count - 1)
+                photoRotation.reset()
                 requestSelectedImage()
                 preloadExifData()
             }
@@ -518,6 +532,8 @@ final class ViewerModel: ObservableObject {
             switch e.keyCode {
             case 123: self.prev(); return nil          // ←
             case 124: self.next(); return nil          // →
+            case 126: self.rotateClockwise(); return nil // ↑
+            case 125: self.rotateCounterClockwise(); return nil // ↓
             case 49:  self.toggleFit(); return nil     // Space
             case 36, 76: self.beginRenaming(); return nil // Return / keypad Enter
             case 51, 117: self.confirmDeleteCurrentFile(); return nil // Delete / Forward Delete
@@ -550,6 +566,7 @@ final class ViewerModel: ObservableObject {
             DispatchQueue.main.async {
                 self.files = [first]
                 self.index = 0
+                self.photoRotation.reset()
                 self.isLoading = false
                 self.requestSelectedImage()
                 print("Opened single file: \(first.lastPathComponent)")
@@ -679,6 +696,9 @@ struct Viewer: View {
                         onRenameStart: { vm.beginRenaming() },
                         onRenameCommit: { vm.commitRename() },
                         onRenameCancel: { vm.cancelRenaming() },
+                        onRotateCounterClockwise: { vm.rotateCounterClockwise() },
+                        onRotateClockwise: { vm.rotateClockwise() },
+                        onDelete: { vm.confirmDeleteCurrentFile() },
                         onFullScreen: {
                             isFullScreen = true
                             vm.toggleFullScreen()
@@ -696,6 +716,7 @@ struct Viewer: View {
                             if vm.fitToWindow {
                                 imageView.resizable().scaledToFit()
                                     .frame(maxWidth: geo.size.width, maxHeight: geo.size.height)
+                                    .rotationEffect(.degrees(Double(vm.photoRotation.degrees)))
                                     .scaleEffect(scale)
                                     .offset(offset)
                                     .clipped() // Prevent image from extending beyond bounds
@@ -757,6 +778,7 @@ struct Viewer: View {
                             } else {
                                 ScrollView([.horizontal, .vertical]) {
                                     imageView.resizable().aspectRatio(contentMode: .fit).fixedSize()
+                                        .rotationEffect(.degrees(Double(vm.photoRotation.degrees)))
                                         .scaleEffect(scale)
                                         .offset(offset)
                                         .clipped() // Prevent image from extending beyond bounds
@@ -895,6 +917,9 @@ struct TopHeader: View {
     let onRenameStart: () -> Void
     let onRenameCommit: () -> Void
     let onRenameCancel: () -> Void
+    let onRotateCounterClockwise: () -> Void
+    let onRotateClockwise: () -> Void
+    let onDelete: () -> Void
     let onFullScreen: () -> Void
     let onInfoToggle: () -> Void
     let onShare: () -> Void
@@ -946,6 +971,26 @@ struct TopHeader: View {
             
             // Action buttons on the right
             HStack(spacing: 8) {
+                Button(isRenaming ? "Done" : "Rename") {
+                    isRenaming ? onRenameCommit() : onRenameStart()
+                }
+                .buttonStyle(.bordered)
+                .help(isRenaming ? "Finish renaming" : "Rename photo (Return)")
+
+                Button(action: onRotateCounterClockwise) {
+                    Image(systemName: "rotate.left")
+                        .font(.title2)
+                }
+                .buttonStyle(.plain)
+                .help("Rotate counter-clockwise (Down Arrow)")
+
+                Button(action: onRotateClockwise) {
+                    Image(systemName: "rotate.right")
+                        .font(.title2)
+                }
+                .buttonStyle(.plain)
+                .help("Rotate clockwise (Up Arrow)")
+
                 // Info button
                 Button(action: onInfoToggle) {
                     Image(systemName: "info.circle")
@@ -981,6 +1026,17 @@ struct TopHeader: View {
                 }
                 .buttonStyle(.plain)
                 .help("Enter Full Screen")
+
+                Button(action: onDelete) {
+                    Image(systemName: "trash")
+                        .font(.title2)
+                        .foregroundStyle(.red)
+                        .padding(8)
+                        .background(.ultraThinMaterial)
+                        .cornerRadius(8)
+                }
+                .buttonStyle(.plain)
+                .help("Move to Trash (Delete)")
             }
         }
         .padding(.horizontal, 16)
