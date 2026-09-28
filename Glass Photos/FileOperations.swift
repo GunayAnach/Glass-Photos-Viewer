@@ -18,6 +18,13 @@ enum FileOperationsError: LocalizedError {
 }
 
 enum FileOperations {
+    static func basicInfo(for url: URL) -> [(String, String)] {
+        [
+            ("File Name", url.lastPathComponent),
+            ("File Path", url.path)
+        ]
+    }
+
     static func destinationURL(for url: URL, baseName: String) throws -> URL {
         let trimmedName = baseName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else { throw FileOperationsError.emptyName }

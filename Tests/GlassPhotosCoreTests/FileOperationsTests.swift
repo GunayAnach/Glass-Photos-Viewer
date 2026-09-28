@@ -35,4 +35,13 @@ final class FileOperationsTests: XCTestCase {
         let original = URL(fileURLWithPath: "/tmp/original.png")
         XCTAssertThrowsError(try FileOperations.destinationURL(for: original, baseName: "folder/name"))
     }
+
+    func testBasicInfoContainsFilenameAndFullPath() {
+        let url = URL(fileURLWithPath: "/Users/example/Pictures/holiday.jpg")
+
+        let info = FileOperations.basicInfo(for: url)
+
+        XCTAssertEqual(info.map(\.0), ["File Name", "File Path"])
+        XCTAssertEqual(info.map(\.1), ["holiday.jpg", "/Users/example/Pictures/holiday.jpg"])
+    }
 }

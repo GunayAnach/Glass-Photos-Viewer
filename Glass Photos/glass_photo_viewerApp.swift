@@ -259,6 +259,7 @@ final class ViewerModel: ObservableObject {
             files[index] = renamedURL
             isRenaming = false
             renameDraft = ""
+            if showInfoSidebar { loadExifData() }
         } catch {
             showFileOperationError(error)
         }
@@ -324,15 +325,16 @@ final class ViewerModel: ObservableObject {
     }
     
     private func extractExifData(from url: URL) -> [(String, Any)] {
+        let basicInfo: [(String, Any)] = FileOperations.basicInfo(for: url).map { ($0.0, $0.1 as Any) }
         guard let imageSource = CGImageSourceCreateWithURL(url as CFURL, nil) else {
-            return []
+            return basicInfo
         }
         
         guard let properties = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, nil) as? [String: Any] else {
-            return []
+            return basicInfo
         }
         
-        var exifData: [(String, Any)] = []
+        var exifData = basicInfo
         var creationDateString: String?
         var modificationDateString: String?
         
