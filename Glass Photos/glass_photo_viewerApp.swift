@@ -57,10 +57,16 @@ final class ViewerModel: ObservableObject {
     @Published var isLoading = false
     @Published var showInfoSidebar = false
     @Published var isLoadingExif = false
+    @Published private(set) var currentImage: NSImage?
+    @Published var isRenaming = false
+    @Published var renameDraft = ""
+    @Published private(set) var isRotating = false
     
     private var keyMonitor: Any?
+    private var isDeleteConfirmationVisible = false
     private let allowed = Set(["jpg","jpeg","png","webp","heic","heif","tiff","gif","bmp","dng","nef","cr2","arw","raf"])
-    private let cache = NSCache<NSURL, NSImage>()
+    private let imagePipeline = ImagePipeline()
+    private var imageRequestGeneration = 0
     
     // EXIF data for current image
     @Published var currentExifData: [(String, Any)] = []
@@ -84,6 +90,7 @@ final class ViewerModel: ObservableObject {
                 self.files = imageFiles
                 self.index = 0
                 self.isLoading = false
+                self.requestSelectedImage()
                 print("Loaded \(imageFiles.count) individual image files")
             }
             
@@ -149,7 +156,7 @@ final class ViewerModel: ObservableObject {
                     self.files = imgs
                     self.index = 0
                     self.isLoading = false
-                    self.preloadNeighbors()
+                    self.requestSelectedImage()
                     print("Folder loaded successfully, files count: \(self.files.count)")
                 }
             } catch {
@@ -190,7 +197,7 @@ final class ViewerModel: ObservableObject {
                     if !imgs.isEmpty, let selectedFile = selectedFile, let fileIndex = imgs.firstIndex(of: selectedFile) {
                         self.files = imgs
                         self.index = fileIndex
-                        self.preloadNeighbors()
+                        self.requestSelectedImage()
                         print("Folder loaded successfully, files count: \(self.files.count), current index: \(self.index)")
                     } else {
                         print("Selected file not found in folder or no images found")
@@ -208,7 +215,7 @@ final class ViewerModel: ObservableObject {
     func show(_ i: Int) {
         guard !files.isEmpty else { return }
         index = (i % files.count + files.count) % files.count
-        preloadNeighbors()
+        requestSelectedImage()
         preloadExifData()
     }
     
@@ -222,6 +229,96 @@ final class ViewerModel: ObservableObject {
     func next() { show(index + 1) }
     func prev() { show(index - 1) }
     func toggleFit() { fitToWindow.toggle() }
+
+    func rotateClockwise() {
+        persistRotation(.clockwise)
+    }
+
+    func rotateCounterClockwise() {
+        persistRotation(.counterClockwise)
+    }
+
+    private func persistRotation(_ direction: FileOperations.RotationDirection) {
+        guard !isRotating, let currentURL = files[safe: index] else { return }
+        isRotating = true
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                try FileOperations.rotate(currentURL, direction: direction)
+                DispatchQueue.main.async {
+                    self.isRotating = false
+                    guard self.files[safe: self.index] == currentURL else { return }
+                    self.imagePipeline.removeCachedImage(for: currentURL)
+                    self.currentImage = nil
+                    self.requestSelectedImage()
+                    if self.showInfoSidebar { self.loadExifData() }
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self.isRotating = false
+                    self.showFileOperationError(error)
+                }
+            }
+        }
+    }
+
+    func beginRenaming() {
+        guard let url = files[safe: index] else { return }
+        renameDraft = url.deletingPathExtension().lastPathComponent
+        isRenaming = true
+    }
+
+    func cancelRenaming() {
+        isRenaming = false
+        renameDraft = ""
+    }
+
+    func commitRename() {
+        guard let currentURL = files[safe: index] else { return }
+        do {
+            let renamedURL = try FileOperations.rename(currentURL, toBaseName: renameDraft)
+            files[index] = renamedURL
+            isRenaming = false
+            renameDraft = ""
+            if showInfoSidebar { loadExifData() }
+        } catch {
+            showFileOperationError(error)
+        }
+    }
+
+    func confirmDeleteCurrentFile() {
+        guard let currentURL = files[safe: index] else { return }
+        isDeleteConfirmationVisible = true
+        defer { isDeleteConfirmationVisible = false }
+        let alert = NSAlert()
+        alert.messageText = "Move “\(currentURL.lastPathComponent)” to the Trash?"
+        alert.informativeText = "You can recover it from the Trash until the Trash is emptied."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Move to Trash")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+        do {
+            try FileOperations.moveToTrash(currentURL)
+            files.remove(at: index)
+            if files.isEmpty {
+                index = 0
+                currentImage = nil
+                currentExifData = []
+            } else {
+                index = min(index, files.count - 1)
+                requestSelectedImage()
+                preloadExifData()
+            }
+        } catch {
+            showFileOperationError(error)
+        }
+    }
+
+    private func showFileOperationError(_ error: Error) {
+        let alert = NSAlert(error: error)
+        alert.runModal()
+    }
+
     func toggleFullScreen() { 
         NSApp.keyWindow?.toggleFullScreen(nil)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
@@ -249,15 +346,16 @@ final class ViewerModel: ObservableObject {
     }
     
     private func extractExifData(from url: URL) -> [(String, Any)] {
+        let basicInfo: [(String, Any)] = FileOperations.basicInfo(for: url).map { ($0.0, $0.1 as Any) }
         guard let imageSource = CGImageSourceCreateWithURL(url as CFURL, nil) else {
-            return []
+            return basicInfo
         }
         
         guard let properties = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, nil) as? [String: Any] else {
-            return []
+            return basicInfo
         }
         
-        var exifData: [(String, Any)] = []
+        var exifData = basicInfo
         var creationDateString: String?
         var modificationDateString: String?
         
@@ -406,20 +504,30 @@ final class ViewerModel: ObservableObject {
         }
     }
 
-    // Image cache
-    func image(for url: URL) -> NSImage? {
-        if let img = cache.object(forKey: url as NSURL) { return img }
-        if let img = NSImage(contentsOf: url) {
-            cache.setObject(img, forKey: url as NSURL)
-            return img
+    // Decode the selected image off the main thread. The generation check keeps
+    // a slow, stale request from replacing a newer selection.
+    private func requestSelectedImage() {
+        guard !files.isEmpty, let selectedURL = files[safe: index] else {
+            currentImage = nil
+            return
         }
-        return nil
-    }
-    private func preloadNeighbors() {
-        guard !files.isEmpty else { return }
-        for delta in [-1, 1] {
-            let j = (index + delta + files.count) % files.count
-            _ = image(for: files[j])
+
+        imageRequestGeneration += 1
+        let generation = imageRequestGeneration
+        currentImage = imagePipeline.cachedImage(for: selectedURL)
+
+        imagePipeline.request(selectedURL) { [weak self] image in
+            guard let self,
+                  self.imageRequestGeneration == generation,
+                  self.files[safe: self.index] == selectedURL else { return }
+            self.currentImage = image
+        }
+
+        // The serial decode queue preserves this order: current, next, previous.
+        // That prioritizes the next likely navigation target without blocking UI.
+        for delta in [1, -1] where files.count > 1 {
+            let neighborIndex = (index + delta + files.count) % files.count
+            imagePipeline.request(files[neighborIndex]) { _ in }
         }
     }
     
@@ -443,17 +551,27 @@ final class ViewerModel: ObservableObject {
         guard keyMonitor == nil else { return }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] e in
             guard let self else { return e }
-            switch e.keyCode {
-            case 123: self.prev(); return nil          // ←
-            case 124: self.next(); return nil          // →
-            case 49:  self.toggleFit(); return nil     // Space
-            case 53:                                  // Esc
+            switch KeyboardCommand.resolve(
+                keyCode: e.keyCode,
+                isRenaming: self.isRenaming,
+                isDeleteConfirmationVisible: self.isDeleteConfirmationVisible
+            ) {
+            case .passThrough:
+                return e
+            case .previous: self.prev(); return nil
+            case .next: self.next(); return nil
+            case .rotateClockwise: self.rotateClockwise(); return nil
+            case .rotateCounterClockwise: self.rotateCounterClockwise(); return nil
+            case .toggleFit: self.toggleFit(); return nil
+            case .beginRename: self.beginRenaming(); return nil
+            case .delete: self.confirmDeleteCurrentFile(); return nil
+            case .escape:
                 if NSApp.keyWindow?.styleMask.contains(.fullScreen) == true {
                     self.toggleFullScreen()
                     return nil
                 }
                 return e
-            default:
+            case .unhandled:
                 if e.charactersIgnoringModifiers?.lowercased() == "f" {
                     self.toggleFullScreen()
                     return nil
@@ -477,6 +595,7 @@ final class ViewerModel: ObservableObject {
                 self.files = [first]
                 self.index = 0
                 self.isLoading = false
+                self.requestSelectedImage()
                 print("Opened single file: \(first.lastPathComponent)")
             }
         }
@@ -599,6 +718,14 @@ struct Viewer: View {
                         imageName: vm.files[safe: vm.index]?.lastPathComponent ?? "",
                         currentIndex: vm.index,
                         totalCount: vm.files.count,
+                        isRenaming: vm.isRenaming,
+                        renameText: $vm.renameDraft,
+                        onRenameStart: { vm.beginRenaming() },
+                        onRenameCommit: { vm.commitRename() },
+                        onRenameCancel: { vm.cancelRenaming() },
+                        onRotateCounterClockwise: { vm.rotateCounterClockwise() },
+                        onRotateClockwise: { vm.rotateClockwise() },
+                        onDelete: { vm.confirmDeleteCurrentFile() },
                         onFullScreen: {
                             isFullScreen = true
                             vm.toggleFullScreen()
@@ -610,7 +737,7 @@ struct Viewer: View {
                 
                 // Main image view
                 GeometryReader { geo in
-                    if let url = vm.files[safe: vm.index], let nsimg = vm.image(for: url) {
+                    if let nsimg = vm.currentImage {
                         let imageView = Image(nsImage: nsimg).interpolation(.high).antialiased(true)
                         Group {
                             if vm.fitToWindow {
@@ -810,19 +937,48 @@ struct TopHeader: View {
     let imageName: String
     let currentIndex: Int
     let totalCount: Int
+    let isRenaming: Bool
+    @Binding var renameText: String
+    let onRenameStart: () -> Void
+    let onRenameCommit: () -> Void
+    let onRenameCancel: () -> Void
+    let onRotateCounterClockwise: () -> Void
+    let onRotateClockwise: () -> Void
+    let onDelete: () -> Void
     let onFullScreen: () -> Void
     let onInfoToggle: () -> Void
     let onShare: () -> Void
+    @FocusState private var renameFieldFocused: Bool
     
     var body: some View {
         HStack {
             // Image name and counter on the left
             HStack(spacing: 8) {
-                Text(imageName)
-                    .font(.headline)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .foregroundStyle(.white)
+                if isRenaming {
+                    HStack(spacing: 3) {
+                        TextField("File name", text: $renameText)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(minWidth: 180, maxWidth: 420)
+                            .focused($renameFieldFocused)
+                            .onSubmit(onRenameCommit)
+                            .onExitCommand(perform: onRenameCancel)
+                        let fileExtension = URL(fileURLWithPath: imageName).pathExtension
+                        if !fileExtension.isEmpty {
+                            Text(".\(fileExtension)")
+                                .font(.headline)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                } else {
+                    Text(imageName)
+                        .font(.headline)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .foregroundStyle(.white)
+                        .contentShape(Rectangle())
+                        .onTapGesture(perform: onRenameStart)
+                        .help("Click or press Return to rename")
+                }
                 
                 if totalCount > 1 {
                     Text("(\(currentIndex + 1)/\(totalCount))")
@@ -840,6 +996,26 @@ struct TopHeader: View {
             
             // Action buttons on the right
             HStack(spacing: 8) {
+                Button(isRenaming ? "Done" : "Rename") {
+                    isRenaming ? onRenameCommit() : onRenameStart()
+                }
+                .buttonStyle(.bordered)
+                .help(isRenaming ? "Finish renaming" : "Rename photo (Return)")
+
+                Button(action: onRotateCounterClockwise) {
+                    Image(systemName: "rotate.left")
+                        .font(.title2)
+                }
+                .buttonStyle(.plain)
+                .help("Rotate counter-clockwise (Down Arrow)")
+
+                Button(action: onRotateClockwise) {
+                    Image(systemName: "rotate.right")
+                        .font(.title2)
+                }
+                .buttonStyle(.plain)
+                .help("Rotate clockwise (Up Arrow)")
+
                 // Info button
                 Button(action: onInfoToggle) {
                     Image(systemName: "info.circle")
@@ -875,6 +1051,17 @@ struct TopHeader: View {
                 }
                 .buttonStyle(.plain)
                 .help("Enter Full Screen")
+
+                Button(action: onDelete) {
+                    Image(systemName: "trash")
+                        .font(.title2)
+                        .foregroundStyle(.red)
+                        .padding(8)
+                        .background(.ultraThinMaterial)
+                        .cornerRadius(8)
+                }
+                .buttonStyle(.plain)
+                .help("Move to Trash (Delete)")
             }
         }
         .padding(.horizontal, 16)
@@ -886,6 +1073,11 @@ struct TopHeader: View {
                 .foregroundStyle(.separator),
             alignment: .bottom
         )
+        .onChange(of: isRenaming) { renaming in
+            if renaming {
+                DispatchQueue.main.async { renameFieldFocused = true }
+            }
+        }
     }
 }
 
