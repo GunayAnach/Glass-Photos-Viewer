@@ -15,4 +15,15 @@ final class KeyboardCommandTests: XCTestCase {
             .beginRename
         )
     }
+
+    func testUpRotatesCounterClockwiseAndDownRotatesClockwise() {
+        XCTAssertEqual(
+            KeyboardCommand.resolve(keyCode: 126, isRenaming: false, isDeleteConfirmationVisible: false),
+            .rotateCounterClockwise
+        )
+        XCTAssertEqual(
+            KeyboardCommand.resolve(keyCode: 125, isRenaming: false, isDeleteConfirmationVisible: false),
+            .rotateClockwise
+        )
+    }
 }

@@ -71,11 +71,19 @@ final class ImagePipeline: @unchecked Sendable {
             return nil
         }
 
+        let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+        let width = properties?[kCGImagePropertyPixelWidth] as? Int ?? 0
+        let height = properties?[kCGImagePropertyPixelHeight] as? Int ?? 0
+        let maximumDimension = max(width, height)
+        guard maximumDimension > 0 else { return nil }
+
         let decodeOptions = [
-            kCGImageSourceShouldCache: true,
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maximumDimension,
             kCGImageSourceShouldCacheImmediately: true
         ] as CFDictionary
-        guard let cgImage = CGImageSourceCreateImageAtIndex(source, 0, decodeOptions) else {
+        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, decodeOptions) else {
             return nil
         }
 

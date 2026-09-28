@@ -16,8 +16,8 @@ enum KeyboardCommand: Equatable {
         switch keyCode {
         case 123: return .previous
         case 124: return .next
-        case 126: return .rotateClockwise
-        case 125: return .rotateCounterClockwise
+        case 126: return .rotateCounterClockwise
+        case 125: return .rotateClockwise
         case 49: return .toggleFit
         case 36, 76: return .beginRename
         case 51, 117: return .delete

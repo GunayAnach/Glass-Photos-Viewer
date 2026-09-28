@@ -1,4 +1,6 @@
 import AppKit
+import ImageIO
+import UniformTypeIdentifiers
 import XCTest
 @testable import GlassPhotosCore
 
@@ -106,6 +108,24 @@ final class ImagePipelineTests: XCTestCase {
         XCTAssertEqual(finalCount, 2)
     }
 
+    func testDecodeAppliesExifOrientationBeforeFirstRotation() throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let url = folder.appendingPathComponent("portrait-tagged.jpg")
+        try writeJPEG(width: 4, height: 2, orientation: 6, to: url)
+        let completed = expectation(description: "oriented decode")
+
+        ImagePipeline().request(url) { image in
+            XCTAssertEqual(image?.representations.first?.pixelsWide, 2)
+            XCTAssertEqual(image?.representations.first?.pixelsHigh, 4)
+            completed.fulfill()
+        }
+
+        wait(for: [completed], timeout: 2)
+    }
+
     private func makeImage() -> NSImage? {
         let image = NSImage(size: NSSize(width: 8, height: 8))
         image.lockFocus()
@@ -113,5 +133,30 @@ final class ImagePipelineTests: XCTestCase {
         NSRect(x: 0, y: 0, width: 8, height: 8).fill()
         image.unlockFocus()
         return image
+    }
+
+    private func writeJPEG(width: Int, height: Int, orientation: Int, to url: URL) throws {
+        let colorSpace = try XCTUnwrap(CGColorSpace(name: CGColorSpace.sRGB))
+        let context = try XCTUnwrap(CGContext(
+            data: nil,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: width * 4,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        context.setFillColor(CGColor(red: 1, green: 0, blue: 0, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        let image = try XCTUnwrap(context.makeImage())
+        let destination = try XCTUnwrap(
+            CGImageDestinationCreateWithURL(url as CFURL, UTType.jpeg.identifier as CFString, 1, nil)
+        )
+        CGImageDestinationAddImage(
+            destination,
+            image,
+            [kCGImagePropertyOrientation: orientation] as CFDictionary
+        )
+        XCTAssertTrue(CGImageDestinationFinalize(destination))
     }
 }
