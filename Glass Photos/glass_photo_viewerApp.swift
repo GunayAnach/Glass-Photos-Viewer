@@ -63,6 +63,7 @@ final class ViewerModel: ObservableObject {
     @Published private(set) var isRotating = false
     
     private var keyMonitor: Any?
+    private var isDeleteConfirmationVisible = false
     private let allowed = Set(["jpg","jpeg","png","webp","heic","heif","tiff","gif","bmp","dng","nef","cr2","arw","raf"])
     private let imagePipeline = ImagePipeline()
     private var imageRequestGeneration = 0
@@ -286,6 +287,8 @@ final class ViewerModel: ObservableObject {
 
     func confirmDeleteCurrentFile() {
         guard let currentURL = files[safe: index] else { return }
+        isDeleteConfirmationVisible = true
+        defer { isDeleteConfirmationVisible = false }
         let alert = NSAlert()
         alert.messageText = "Move “\(currentURL.lastPathComponent)” to the Trash?"
         alert.informativeText = "You can recover it from the Trash until the Trash is emptied."
@@ -548,22 +551,27 @@ final class ViewerModel: ObservableObject {
         guard keyMonitor == nil else { return }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] e in
             guard let self else { return e }
-            if self.isRenaming { return e }
-            switch e.keyCode {
-            case 123: self.prev(); return nil          // ←
-            case 124: self.next(); return nil          // →
-            case 126: self.rotateClockwise(); return nil // ↑
-            case 125: self.rotateCounterClockwise(); return nil // ↓
-            case 49:  self.toggleFit(); return nil     // Space
-            case 36, 76: self.beginRenaming(); return nil // Return / keypad Enter
-            case 51, 117: self.confirmDeleteCurrentFile(); return nil // Delete / Forward Delete
-            case 53:                                  // Esc
+            switch KeyboardCommand.resolve(
+                keyCode: e.keyCode,
+                isRenaming: self.isRenaming,
+                isDeleteConfirmationVisible: self.isDeleteConfirmationVisible
+            ) {
+            case .passThrough:
+                return e
+            case .previous: self.prev(); return nil
+            case .next: self.next(); return nil
+            case .rotateClockwise: self.rotateClockwise(); return nil
+            case .rotateCounterClockwise: self.rotateCounterClockwise(); return nil
+            case .toggleFit: self.toggleFit(); return nil
+            case .beginRename: self.beginRenaming(); return nil
+            case .delete: self.confirmDeleteCurrentFile(); return nil
+            case .escape:
                 if NSApp.keyWindow?.styleMask.contains(.fullScreen) == true {
                     self.toggleFullScreen()
                     return nil
                 }
                 return e
-            default:
+            case .unhandled:
                 if e.charactersIgnoringModifiers?.lowercased() == "f" {
                     self.toggleFullScreen()
                     return nil
