@@ -28,6 +28,10 @@ final class ImagePipeline: @unchecked Sendable {
         cache.object(forKey: url as NSURL)
     }
 
+    func removeCachedImage(for url: URL) {
+        cache.removeObject(forKey: url as NSURL)
+    }
+
     func request(_ url: URL, completion: @escaping Completion) {
         if let image = cachedImage(for: url) {
             DispatchQueue.main.async {

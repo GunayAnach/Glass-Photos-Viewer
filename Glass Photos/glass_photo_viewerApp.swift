@@ -60,7 +60,7 @@ final class ViewerModel: ObservableObject {
     @Published private(set) var currentImage: NSImage?
     @Published var isRenaming = false
     @Published var renameDraft = ""
-    @Published var photoRotation = PhotoRotation()
+    @Published private(set) var isRotating = false
     
     private var keyMonitor: Any?
     private let allowed = Set(["jpg","jpeg","png","webp","heic","heif","tiff","gif","bmp","dng","nef","cr2","arw","raf"])
@@ -88,7 +88,6 @@ final class ViewerModel: ObservableObject {
             DispatchQueue.main.async {
                 self.files = imageFiles
                 self.index = 0
-                self.photoRotation.reset()
                 self.isLoading = false
                 self.requestSelectedImage()
                 print("Loaded \(imageFiles.count) individual image files")
@@ -155,7 +154,6 @@ final class ViewerModel: ObservableObject {
                 DispatchQueue.main.async {
                     self.files = imgs
                     self.index = 0
-                    self.photoRotation.reset()
                     self.isLoading = false
                     self.requestSelectedImage()
                     print("Folder loaded successfully, files count: \(self.files.count)")
@@ -198,7 +196,6 @@ final class ViewerModel: ObservableObject {
                     if !imgs.isEmpty, let selectedFile = selectedFile, let fileIndex = imgs.firstIndex(of: selectedFile) {
                         self.files = imgs
                         self.index = fileIndex
-                        self.photoRotation.reset()
                         self.requestSelectedImage()
                         print("Folder loaded successfully, files count: \(self.files.count), current index: \(self.index)")
                     } else {
@@ -217,7 +214,6 @@ final class ViewerModel: ObservableObject {
     func show(_ i: Int) {
         guard !files.isEmpty else { return }
         index = (i % files.count + files.count) % files.count
-        photoRotation.reset()
         requestSelectedImage()
         preloadExifData()
     }
@@ -234,11 +230,34 @@ final class ViewerModel: ObservableObject {
     func toggleFit() { fitToWindow.toggle() }
 
     func rotateClockwise() {
-        photoRotation.rotateClockwise()
+        persistRotation(.clockwise)
     }
 
     func rotateCounterClockwise() {
-        photoRotation.rotateCounterClockwise()
+        persistRotation(.counterClockwise)
+    }
+
+    private func persistRotation(_ direction: FileOperations.RotationDirection) {
+        guard !isRotating, let currentURL = files[safe: index] else { return }
+        isRotating = true
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                try FileOperations.rotate(currentURL, direction: direction)
+                DispatchQueue.main.async {
+                    self.isRotating = false
+                    guard self.files[safe: self.index] == currentURL else { return }
+                    self.imagePipeline.removeCachedImage(for: currentURL)
+                    self.currentImage = nil
+                    self.requestSelectedImage()
+                    if self.showInfoSidebar { self.loadExifData() }
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self.isRotating = false
+                    self.showFileOperationError(error)
+                }
+            }
+        }
     }
 
     func beginRenaming() {
@@ -284,7 +303,6 @@ final class ViewerModel: ObservableObject {
                 currentExifData = []
             } else {
                 index = min(index, files.count - 1)
-                photoRotation.reset()
                 requestSelectedImage()
                 preloadExifData()
             }
@@ -568,7 +586,6 @@ final class ViewerModel: ObservableObject {
             DispatchQueue.main.async {
                 self.files = [first]
                 self.index = 0
-                self.photoRotation.reset()
                 self.isLoading = false
                 self.requestSelectedImage()
                 print("Opened single file: \(first.lastPathComponent)")
@@ -718,7 +735,6 @@ struct Viewer: View {
                             if vm.fitToWindow {
                                 imageView.resizable().scaledToFit()
                                     .frame(maxWidth: geo.size.width, maxHeight: geo.size.height)
-                                    .rotationEffect(.degrees(Double(vm.photoRotation.degrees)))
                                     .scaleEffect(scale)
                                     .offset(offset)
                                     .clipped() // Prevent image from extending beyond bounds
@@ -780,7 +796,6 @@ struct Viewer: View {
                             } else {
                                 ScrollView([.horizontal, .vertical]) {
                                     imageView.resizable().aspectRatio(contentMode: .fit).fixedSize()
-                                        .rotationEffect(.degrees(Double(vm.photoRotation.degrees)))
                                         .scaleEffect(scale)
                                         .offset(offset)
                                         .clipped() // Prevent image from extending beyond bounds

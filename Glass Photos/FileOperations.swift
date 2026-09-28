@@ -1,9 +1,14 @@
 import Foundation
+import CoreImage
+import ImageIO
 
 enum FileOperationsError: LocalizedError {
     case emptyName
     case invalidName
     case destinationExists
+    case unreadableImage
+    case unsupportedImageFormat
+    case imageWriteFailed
 
     var errorDescription: String? {
         switch self {
@@ -13,11 +18,22 @@ enum FileOperationsError: LocalizedError {
             return "The file name cannot contain a slash or colon."
         case .destinationExists:
             return "A file with that name already exists."
+        case .unreadableImage:
+            return "The image could not be read."
+        case .unsupportedImageFormat:
+            return "This image format cannot be rotated and saved."
+        case .imageWriteFailed:
+            return "The rotated image could not be saved."
         }
     }
 }
 
 enum FileOperations {
+    enum RotationDirection {
+        case clockwise
+        case counterClockwise
+    }
+
     static func basicInfo(for url: URL) -> [(String, String)] {
         [
             ("File Name", url.lastPathComponent),
@@ -47,6 +63,53 @@ enum FileOperations {
         }
         try FileManager.default.moveItem(at: url, to: destination)
         return destination
+    }
+
+    static func rotate(_ url: URL, direction: RotationDirection) throws {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let sourceType = CGImageSourceGetType(source),
+              let inputImage = CIImage(
+                contentsOf: url,
+                options: [.applyOrientationProperty: true]
+              ) else {
+            throw FileOperationsError.unreadableImage
+        }
+        let writableTypes = CGImageDestinationCopyTypeIdentifiers() as? [String] ?? []
+        guard writableTypes.contains(sourceType as String) else {
+            throw FileOperationsError.unsupportedImageFormat
+        }
+
+        let orientation: CGImagePropertyOrientation = direction == .clockwise ? .right : .left
+        let rotatedImage = inputImage.oriented(orientation)
+        let context = CIContext(options: [.cacheIntermediates: false])
+        guard let outputImage = context.createCGImage(rotatedImage, from: rotatedImage.extent) else {
+            throw FileOperationsError.imageWriteFailed
+        }
+
+        let temporaryURL = url.deletingLastPathComponent().appendingPathComponent(
+            ".glass-photos-\(UUID().uuidString).\(url.pathExtension)"
+        )
+        defer { try? FileManager.default.removeItem(at: temporaryURL) }
+
+        guard let destination = CGImageDestinationCreateWithURL(
+            temporaryURL as CFURL,
+            sourceType,
+            1,
+            nil
+        ) else {
+            throw FileOperationsError.unsupportedImageFormat
+        }
+
+        var properties = (CGImageSourceCopyPropertiesAtIndex(source, 0, nil)
+            as? [CFString: Any]) ?? [:]
+        properties[kCGImagePropertyOrientation] = 1
+        properties[kCGImageDestinationLossyCompressionQuality] = 1.0
+        CGImageDestinationAddImage(destination, outputImage, properties as CFDictionary)
+        guard CGImageDestinationFinalize(destination) else {
+            throw FileOperationsError.imageWriteFailed
+        }
+
+        _ = try FileManager.default.replaceItemAt(url, withItemAt: temporaryURL)
     }
 
     static func moveToTrash(_ url: URL) throws {

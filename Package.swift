@@ -17,7 +17,7 @@ let package = Package(
                 "glass_photo_viewer.entitlements",
                 "glass_photo_viewerApp.swift"
             ],
-            sources: ["FileOperations.swift", "ImagePipeline.swift", "PhotoRotation.swift"]
+            sources: ["FileOperations.swift", "ImagePipeline.swift"]
         ),
         .testTarget(
             name: "GlassPhotosCoreTests",

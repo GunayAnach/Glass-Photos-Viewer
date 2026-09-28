@@ -80,6 +80,32 @@ final class ImagePipelineTests: XCTestCase {
         XCTAssertEqual(finalCount, 1)
     }
 
+    func testRemovingCachedImageForcesFreshDecode() throws {
+        let decoded = try XCTUnwrap(makeImage())
+        let first = expectation(description: "first request")
+        let second = expectation(description: "fresh request")
+        let lock = NSLock()
+        var decodeCount = 0
+        let url = URL(fileURLWithPath: "/tmp/photo.jpg")
+        let pipeline = ImagePipeline { _ in
+            lock.lock()
+            decodeCount += 1
+            lock.unlock()
+            return decoded
+        }
+
+        pipeline.request(url) { _ in first.fulfill() }
+        wait(for: [first], timeout: 2)
+        pipeline.removeCachedImage(for: url)
+        pipeline.request(url) { _ in second.fulfill() }
+        wait(for: [second], timeout: 2)
+
+        lock.lock()
+        let finalCount = decodeCount
+        lock.unlock()
+        XCTAssertEqual(finalCount, 2)
+    }
+
     private func makeImage() -> NSImage? {
         let image = NSImage(size: NSSize(width: 8, height: 8))
         image.lockFocus()

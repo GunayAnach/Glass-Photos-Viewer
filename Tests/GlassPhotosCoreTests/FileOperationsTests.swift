@@ -1,3 +1,6 @@
+import CoreGraphics
+import ImageIO
+import UniformTypeIdentifiers
 import XCTest
 @testable import GlassPhotosCore
 
@@ -43,5 +46,44 @@ final class FileOperationsTests: XCTestCase {
 
         XCTAssertEqual(info.map(\.0), ["File Name", "File Path"])
         XCTAssertEqual(info.map(\.1), ["holiday.jpg", "/Users/example/Pictures/holiday.jpg"])
+    }
+
+    func testClockwiseRotationPersistsSwappedPixelDimensions() throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let url = folder.appendingPathComponent("wide.png")
+        try writePNG(width: 4, height: 2, to: url)
+
+        try FileOperations.rotate(url, direction: .clockwise)
+
+        let source = try XCTUnwrap(CGImageSourceCreateWithURL(url as CFURL, nil))
+        let properties = try XCTUnwrap(
+            CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+        )
+        XCTAssertEqual(properties[kCGImagePropertyPixelWidth] as? Int, 2)
+        XCTAssertEqual(properties[kCGImagePropertyPixelHeight] as? Int, 4)
+    }
+
+    private func writePNG(width: Int, height: Int, to url: URL) throws {
+        let colorSpace = try XCTUnwrap(CGColorSpace(name: CGColorSpace.sRGB))
+        let context = try XCTUnwrap(CGContext(
+            data: nil,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: width * 4,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        context.setFillColor(CGColor(red: 1, green: 0, blue: 0, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        let image = try XCTUnwrap(context.makeImage())
+        let destination = try XCTUnwrap(
+            CGImageDestinationCreateWithURL(url as CFURL, UTType.png.identifier as CFString, 1, nil)
+        )
+        CGImageDestinationAddImage(destination, image, nil)
+        XCTAssertTrue(CGImageDestinationFinalize(destination))
     }
 }
