@@ -54,6 +54,28 @@ A fast, Windows-style photo viewer for macOS that lets you browse with the arrow
 
 ## How to Use
 
+### Apple Gatekeeper
+
+Glass Photos is ad-hoc signed but not Apple-notarized. On first launch, macOS may show an **unidentified developer** warning.
+
+#### Preferred method
+
+1. Move **Glass Photos.app** to `/Applications`.
+2. Right-click the app and choose **Open**.
+3. Confirm **Open** when macOS asks.
+
+![Open Glass Photos through Gatekeeper](assets/7.jpg)
+
+#### If macOS still reports that the app is damaged
+
+Only after downloading the app from the official [Glass Photos releases](https://github.com/GunayAnach/Mac-Glass-Photos-Viewer/releases), remove its quarantine attribute:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/Glass Photos.app"
+```
+
+Then right-click **Glass Photos.app** and choose **Open** again.
+
 ### Opening Photos
 1. **Launch the app** - Use the button to open a folder
 2. **Double-click any associated image file** - The app opens that image and loads neighboring photos from its folder
