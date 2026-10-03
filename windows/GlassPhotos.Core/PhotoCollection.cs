@@ -1,0 +1,112 @@
+using System.Collections.ObjectModel;
+
+namespace GlassPhotos.Core;
+
+public sealed class PhotoCollection
+{
+    private static readonly HashSet<string> SupportedExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".jpg", ".jpeg", ".png", ".heic", ".heif", ".tif", ".tiff",
+        ".gif", ".bmp", ".webp", ".dng", ".nef", ".cr2", ".arw", ".raf"
+    };
+
+    private PhotoCollection(IReadOnlyList<string> files, int currentIndex)
+    {
+        Files = files;
+        CurrentIndex = currentIndex;
+    }
+
+    public IReadOnlyList<string> Files { get; }
+
+    public int CurrentIndex { get; private set; }
+
+    public string CurrentPath => Files[CurrentIndex];
+
+    public bool MovePrevious()
+    {
+        if (CurrentIndex == 0) return false;
+        CurrentIndex--;
+        return true;
+    }
+
+    public bool MoveNext()
+    {
+        if (CurrentIndex >= Files.Count - 1) return false;
+        CurrentIndex++;
+        return true;
+    }
+
+    public static PhotoCollection Open(string selectedPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(selectedPath);
+
+        var fullPath = Path.GetFullPath(selectedPath);
+        if (!File.Exists(fullPath))
+        {
+            throw new FileNotFoundException("The selected photo does not exist.", fullPath);
+        }
+
+        if (!SupportedExtensions.Contains(Path.GetExtension(fullPath)))
+        {
+            throw new NotSupportedException($"'{Path.GetExtension(fullPath)}' is not a supported image type.");
+        }
+
+        var directory = Path.GetDirectoryName(fullPath)
+            ?? throw new InvalidOperationException("The selected photo has no containing folder.");
+
+        var files = Directory.EnumerateFiles(directory)
+            .Where(path => SupportedExtensions.Contains(Path.GetExtension(path)))
+            .OrderBy(path => Path.GetFileName(path), NaturalFileNameComparer.Instance)
+            .Select(Path.GetFullPath)
+            .ToArray();
+
+        var index = Array.FindIndex(files, path => string.Equals(path, fullPath, StringComparison.OrdinalIgnoreCase));
+        if (index < 0)
+        {
+            throw new InvalidOperationException("The selected photo was not found in its containing folder.");
+        }
+
+        return new PhotoCollection(new ReadOnlyCollection<string>(files), index);
+    }
+
+    private sealed class NaturalFileNameComparer : IComparer<string>
+    {
+        public static NaturalFileNameComparer Instance { get; } = new();
+
+        public int Compare(string? left, string? right)
+        {
+            if (ReferenceEquals(left, right)) return 0;
+            if (left is null) return -1;
+            if (right is null) return 1;
+
+            var leftIndex = 0;
+            var rightIndex = 0;
+            while (leftIndex < left.Length && rightIndex < right.Length)
+            {
+                if (char.IsDigit(left[leftIndex]) && char.IsDigit(right[rightIndex]))
+                {
+                    var leftStart = leftIndex;
+                    var rightStart = rightIndex;
+                    while (leftIndex < left.Length && char.IsDigit(left[leftIndex])) leftIndex++;
+                    while (rightIndex < right.Length && char.IsDigit(right[rightIndex])) rightIndex++;
+
+                    var leftDigits = left.AsSpan(leftStart, leftIndex - leftStart).TrimStart('0');
+                    var rightDigits = right.AsSpan(rightStart, rightIndex - rightStart).TrimStart('0');
+                    var lengthComparison = leftDigits.Length.CompareTo(rightDigits.Length);
+                    if (lengthComparison != 0) return lengthComparison;
+
+                    var digitComparison = leftDigits.CompareTo(rightDigits, StringComparison.Ordinal);
+                    if (digitComparison != 0) return digitComparison;
+                    continue;
+                }
+
+                var characterComparison = char.ToUpperInvariant(left[leftIndex]).CompareTo(char.ToUpperInvariant(right[rightIndex]));
+                if (characterComparison != 0) return characterComparison;
+                leftIndex++;
+                rightIndex++;
+            }
+
+            return left.Length.CompareTo(right.Length);
+        }
+    }
+}
