@@ -13,6 +13,8 @@ namespace GlassPhotos.WinUI;
 public sealed partial class MainWindow : Window
 {
     private readonly string? _initialPath;
+    private readonly AsyncLruCache<string, BitmapImage> _imageCache =
+        new(capacity: 7, StringComparer.OrdinalIgnoreCase);
     private PhotoCollection? _photos;
     private long _loadGeneration;
 
@@ -80,10 +82,7 @@ public sealed partial class MainWindow : Window
 
         var generation = Interlocked.Increment(ref _loadGeneration);
         var path = _photos.CurrentPath;
-        var file = await StorageFile.GetFileFromPathAsync(path);
-        await using var stream = await file.OpenStreamForReadAsync();
-        var bitmap = new BitmapImage();
-        await bitmap.SetSourceAsync(stream.AsRandomAccessStream());
+        var bitmap = await _imageCache.GetAsync(path, LoadBitmapAsync);
 
         if (generation != _loadGeneration) return;
 
@@ -97,6 +96,35 @@ public sealed partial class MainWindow : Window
         RenameButton.IsEnabled = true;
         DeleteButton.IsEnabled = true;
         Title = $"{Path.GetFileName(path)} — Glass Photos";
+        _ = PrefetchNeighboursAsync();
+    }
+
+    private static async Task<BitmapImage> LoadBitmapAsync(string path)
+    {
+        var file = await StorageFile.GetFileFromPathAsync(path);
+        await using var stream = await file.OpenStreamForReadAsync();
+        var bitmap = new BitmapImage();
+        await bitmap.SetSourceAsync(stream.AsRandomAccessStream());
+        return bitmap;
+    }
+
+    private async Task PrefetchNeighboursAsync()
+    {
+        if (_photos is null) return;
+
+        var paths = new[] { _photos.CurrentIndex - 1, _photos.CurrentIndex + 1 }
+            .Where(index => index >= 0 && index < _photos.Files.Count)
+            .Select(index => _photos.Files[index])
+            .ToArray();
+
+        try
+        {
+            await Task.WhenAll(paths.Select(path => _imageCache.GetAsync(path, LoadBitmapAsync)));
+        }
+        catch
+        {
+            // A neighbor may disappear while prefetching. The visible image remains usable.
+        }
     }
 
     private async void Rename_Click(object sender, RoutedEventArgs e)
@@ -121,7 +149,9 @@ public sealed partial class MainWindow : Window
 
         try
         {
+            var previousPath = _photos.CurrentPath;
             _photos.RenameCurrent(nameBox.Text);
+            _imageCache.Remove(previousPath);
             await DisplayCurrentPhotoAsync();
         }
         catch (Exception exception)
@@ -149,6 +179,7 @@ public sealed partial class MainWindow : Window
 
         try
         {
+            _imageCache.Remove(path);
             FileSystem.DeleteFile(
                 path,
                 UIOption.OnlyErrorDialogs,

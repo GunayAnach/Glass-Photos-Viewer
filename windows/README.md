@@ -13,6 +13,7 @@ The first vertical slice is implemented:
 - Load supported neighboring photos from the same directory
 - Natural filename ordering (`photo2.jpg` before `photo10.jpg`)
 - Previous/next toolbar controls and Left/Right keyboard navigation
+- Asynchronous image cache with neighboring-photo prefetch
 - Persistent filesystem rename while preserving the image extension
 - Confirmed deletion to the Windows Recycle Bin (never permanent deletion)
 - Self-contained, unpackaged publishing with no installer
