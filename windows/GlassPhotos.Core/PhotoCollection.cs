@@ -1,26 +1,68 @@
-using System.Collections.ObjectModel;
-
 namespace GlassPhotos.Core;
 
 public sealed class PhotoCollection
 {
+    private readonly List<string> _files;
+
     private static readonly HashSet<string> SupportedExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         ".jpg", ".jpeg", ".png", ".heic", ".heif", ".tif", ".tiff",
         ".gif", ".bmp", ".webp", ".dng", ".nef", ".cr2", ".arw", ".raf"
     };
 
-    private PhotoCollection(IReadOnlyList<string> files, int currentIndex)
+    private PhotoCollection(IEnumerable<string> files, int currentIndex)
     {
-        Files = files;
+        _files = files.ToList();
         CurrentIndex = currentIndex;
     }
 
-    public IReadOnlyList<string> Files { get; }
+    public IReadOnlyList<string> Files => _files;
 
     public int CurrentIndex { get; private set; }
 
-    public string CurrentPath => Files[CurrentIndex];
+    public string CurrentPath => _files[CurrentIndex];
+
+    public string RenameCurrent(string newBaseName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(newBaseName);
+        if (newBaseName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0
+            || newBaseName.Contains(Path.DirectorySeparatorChar)
+            || newBaseName.Contains(Path.AltDirectorySeparatorChar))
+        {
+            throw new ArgumentException("The new name contains invalid filename characters.", nameof(newBaseName));
+        }
+
+        var source = CurrentPath;
+        var destination = Path.Combine(
+            Path.GetDirectoryName(source)!,
+            newBaseName.Trim() + Path.GetExtension(source));
+
+        if (File.Exists(destination))
+        {
+            throw new IOException($"A file named '{Path.GetFileName(destination)}' already exists.");
+        }
+
+        File.Move(source, destination);
+        _files[CurrentIndex] = destination;
+        return destination;
+    }
+
+    public string? RemoveCurrentAfterDeletion()
+    {
+        _files.RemoveAt(CurrentIndex);
+        if (_files.Count == 0)
+        {
+            CurrentIndex = -1;
+            return null;
+        }
+
+        if (CurrentIndex >= _files.Count)
+        {
+            CurrentIndex = _files.Count - 1;
+        }
+
+        return CurrentPath;
+    }
 
     public bool MovePrevious()
     {
@@ -31,7 +73,7 @@ public sealed class PhotoCollection
 
     public bool MoveNext()
     {
-        if (CurrentIndex >= Files.Count - 1) return false;
+        if (CurrentIndex >= _files.Count - 1) return false;
         CurrentIndex++;
         return true;
     }
@@ -66,7 +108,7 @@ public sealed class PhotoCollection
             throw new InvalidOperationException("The selected photo was not found in its containing folder.");
         }
 
-        return new PhotoCollection(new ReadOnlyCollection<string>(files), index);
+        return new PhotoCollection(files, index);
     }
 
     private sealed class NaturalFileNameComparer : IComparer<string>

@@ -22,8 +22,8 @@
             <AppBarSeparator />
             <AppBarButton Icon="Rotate" Label="Rotate left" IsEnabled="False" ToolTipService.ToolTip="Persistent rotation is the next implementation milestone" />
             <AppBarButton Icon="Rotate" Label="Rotate right" IsEnabled="False" ToolTipService.ToolTip="Persistent rotation is the next implementation milestone" />
-            <AppBarButton Icon="Rename" Label="Rename" IsEnabled="False" />
-            <AppBarButton Icon="Delete" Label="Recycle" IsEnabled="False" />
+            <AppBarButton x:Name="RenameButton" Icon="Rename" Label="Rename" Click="Rename_Click" IsEnabled="False" />
+            <AppBarButton x:Name="DeleteButton" Icon="Delete" Label="Recycle" Click="Delete_Click" IsEnabled="False" />
         </CommandBar>
 
         <Grid Grid.Row="1">

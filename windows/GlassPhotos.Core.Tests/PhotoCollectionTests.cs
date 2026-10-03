@@ -41,6 +41,36 @@ public sealed class PhotoCollectionTests : IDisposable
         Assert.Equal(second, collection.CurrentPath);
     }
 
+    [Fact]
+    public void RenameCurrentPersistsAndPreservesExtension()
+    {
+        var selected = CreateFile("before.jpg");
+        var collection = PhotoCollection.Open(selected);
+
+        var renamed = collection.RenameCurrent("after");
+
+        Assert.Equal(Path.Combine(_directory, "after.jpg"), renamed);
+        Assert.Equal(renamed, collection.CurrentPath);
+        Assert.False(File.Exists(selected));
+        Assert.True(File.Exists(renamed));
+    }
+
+    [Fact]
+    public void RemovingCurrentPhotoSelectsTheNextNeighbour()
+    {
+        CreateFile("photo1.jpg");
+        var selected = CreateFile("photo2.jpg");
+        var next = CreateFile("photo3.jpg");
+        var collection = PhotoCollection.Open(selected);
+        File.Delete(selected);
+
+        var replacement = collection.RemoveCurrentAfterDeletion();
+
+        Assert.Equal(next, replacement);
+        Assert.Equal(next, collection.CurrentPath);
+        Assert.Equal(2, collection.Files.Count);
+    }
+
     private string CreateFile(string name)
     {
         var path = Path.Combine(_directory, name);

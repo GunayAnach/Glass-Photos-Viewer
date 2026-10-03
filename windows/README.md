@@ -13,10 +13,12 @@ The first vertical slice is implemented:
 - Load supported neighboring photos from the same directory
 - Natural filename ordering (`photo2.jpg` before `photo10.jpg`)
 - Previous/next toolbar controls and Left/Right keyboard navigation
+- Persistent filesystem rename while preserving the image extension
+- Confirmed deletion to the Windows Recycle Bin (never permanent deletion)
 - Self-contained, unpackaged publishing with no installer
 
-Persistent rotation, rename, Recycle Bin deletion, image metadata, eager decode/cache,
-and Explorer file associations are tracked as subsequent milestones.
+Persistent rotation, image metadata, eager decode/cache, and Explorer file associations
+are tracked as subsequent milestones.
 
 ## Portable distribution
 

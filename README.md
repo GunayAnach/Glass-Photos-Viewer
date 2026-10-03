@@ -68,7 +68,7 @@ Glass Photos is ad-hoc signed but not Apple-notarized. On first launch, macOS ma
 
 #### If macOS still reports that the app is damaged
 
-Only after downloading the app from the official [Glass Photos releases](https://github.com/GunayAnach/Mac-Glass-Photos-Viewer/releases), remove its quarantine attribute:
+Only after downloading the app from the official [Glass Photos releases](https://github.com/GunayAnach/Glass-Photos-Viewer/releases), remove its quarantine attribute:
 
 ```bash
 xattr -dr com.apple.quarantine "/Applications/Glass Photos.app"
@@ -89,15 +89,15 @@ Then right-click **Glass Photos.app** and choose **Open** again.
 ## Installation
 
 ### Quick Download
-Download the latest build from the [Glass Photos releases](https://github.com/GunayAnach/mac-photo-viewer/releases/latest).
+Download the latest build from the [Glass Photos releases](https://github.com/GunayAnach/Glass-Photos-Viewer/releases/latest).
 
 ### 🌍 From GitHub Releases
-- Download the latest ZIP from the [releases section](https://github.com/GunayAnach/mac-photo-viewer/releases)
+- Download the latest ZIP from the [releases section](https://github.com/GunayAnach/Glass-Photos-Viewer/releases)
 - Extract it and drag **Glass Photos.app** to the Applications folder
 - The beta builds are unsigned; right-click the app and choose **Open** the first time
 
 ## Bugs or Issues?
-Open a ticket under [Issues](https://github.com/GunayAnach/mac-photo-viewer/issues).
+Open a ticket under [Issues](https://github.com/GunayAnach/Glass-Photos-Viewer/issues).
 - Describe what is not working and which macOS version you are using
 - Explain step by step how the problem can be reproduced
 

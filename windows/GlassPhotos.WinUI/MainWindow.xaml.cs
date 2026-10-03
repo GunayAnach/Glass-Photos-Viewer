@@ -1,4 +1,5 @@
 using GlassPhotos.Core;
+using Microsoft.VisualBasic.FileIO;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -93,7 +94,94 @@ public sealed partial class MainWindow : Window
         PositionText.Text = $"{_photos.CurrentIndex + 1} / {_photos.Files.Count}";
         PreviousButton.IsEnabled = _photos.CurrentIndex > 0;
         NextButton.IsEnabled = _photos.CurrentIndex < _photos.Files.Count - 1;
+        RenameButton.IsEnabled = true;
+        DeleteButton.IsEnabled = true;
         Title = $"{Path.GetFileName(path)} — Glass Photos";
+    }
+
+    private async void Rename_Click(object sender, RoutedEventArgs e)
+    {
+        if (_photos is null) return;
+
+        var nameBox = new TextBox
+        {
+            Text = Path.GetFileNameWithoutExtension(_photos.CurrentPath)
+        };
+        var dialog = new ContentDialog
+        {
+            Title = "Rename photo",
+            Content = nameBox,
+            PrimaryButtonText = "Rename",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = Content.XamlRoot
+        };
+
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+
+        try
+        {
+            _photos.RenameCurrent(nameBox.Text);
+            await DisplayCurrentPhotoAsync();
+        }
+        catch (Exception exception)
+        {
+            await ShowErrorAsync("Could not rename photo", exception.Message);
+        }
+    }
+
+    private async void Delete_Click(object sender, RoutedEventArgs e)
+    {
+        if (_photos is null) return;
+
+        var path = _photos.CurrentPath;
+        var dialog = new ContentDialog
+        {
+            Title = "Move photo to Recycle Bin?",
+            Content = Path.GetFileName(path),
+            PrimaryButtonText = "Move to Recycle Bin",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = Content.XamlRoot
+        };
+
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+
+        try
+        {
+            FileSystem.DeleteFile(
+                path,
+                UIOption.OnlyErrorDialogs,
+                RecycleOption.SendToRecycleBin,
+                UICancelOption.DoNothing);
+
+            if (_photos.RemoveCurrentAfterDeletion() is null)
+            {
+                ClearPhoto();
+            }
+            else
+            {
+                await DisplayCurrentPhotoAsync();
+            }
+        }
+        catch (Exception exception)
+        {
+            await ShowErrorAsync("Could not recycle photo", exception.Message);
+        }
+    }
+
+    private void ClearPhoto()
+    {
+        PhotoImage.Source = null;
+        WelcomePanel.Visibility = Visibility.Visible;
+        FileNameText.Text = "No photo selected";
+        PositionText.Text = string.Empty;
+        PreviousButton.IsEnabled = false;
+        NextButton.IsEnabled = false;
+        RenameButton.IsEnabled = false;
+        DeleteButton.IsEnabled = false;
+        Title = "Glass Photos";
+        _photos = null;
     }
 
     private async void Previous_Click(object sender, RoutedEventArgs e)
