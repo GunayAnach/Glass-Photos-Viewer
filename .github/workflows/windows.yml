@@ -35,6 +35,17 @@ jobs:
         shell: pwsh
         run: ./windows/publish-windows.ps1 -Architecture x64
 
+      - name: Smoke test portable app startup
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path "dist/Glass-Photos-Windows-x64/GlassPhotos.WinUI.exe"
+          $process = Start-Process $exe -PassThru
+          Start-Sleep -Seconds 5
+          if ($process.HasExited) {
+            throw "Portable app exited during startup with code $($process.ExitCode)."
+          }
+          Stop-Process -Id $process.Id -Force
+
       - name: Upload portable ZIP
         uses: actions/upload-artifact@v4
         with:
