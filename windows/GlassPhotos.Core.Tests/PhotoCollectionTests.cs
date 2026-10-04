@@ -71,6 +71,20 @@ public sealed class PhotoCollectionTests : IDisposable
         Assert.Equal(2, collection.Files.Count);
     }
 
+    [Fact]
+    public void OpeningAFolderSelectsItsFirstSupportedPhoto()
+    {
+        var first = CreateFile("photo2.jpg");
+        CreateFile("photo10.jpg");
+        CreateFile("notes.txt");
+
+        var collection = PhotoCollection.OpenDirectory(_directory);
+
+        Assert.Equal(first, collection.CurrentPath);
+        Assert.Equal(2, collection.Files.Count);
+        Assert.Equal(0, collection.CurrentIndex);
+    }
+
     private string CreateFile(string name)
     {
         var path = Path.Combine(_directory, name);

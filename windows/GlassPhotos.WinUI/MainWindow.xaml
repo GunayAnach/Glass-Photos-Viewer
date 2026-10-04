@@ -7,43 +7,228 @@
     mc:Ignorable="d"
     Title="Glass Photos">
 
-    <Grid Background="#111111" KeyDown="Window_KeyDown">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+    <Window.Resources>
+        <Style x:Key="HeaderIconButton" TargetType="Button">
+            <Setter Property="Width" Value="38" />
+            <Setter Property="Height" Value="38" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Background" Value="#262626" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="PlainHeaderButton" TargetType="Button">
+            <Setter Property="Width" Value="34" />
+            <Setter Property="Height" Value="38" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="InfoLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="#8E8E93" />
+            <Setter Property="CharacterSpacing" Value="45" />
+        </Style>
+        <Style x:Key="InfoValue" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+    </Window.Resources>
 
-        <CommandBar Grid.Row="0" Background="#CC1A1A1A" DefaultLabelPosition="Right">
-            <AppBarButton Icon="OpenFile" Label="Open" Click="Open_Click" />
-            <AppBarSeparator />
-            <AppBarButton x:Name="PreviousButton" Icon="Back" Label="Previous" Click="Previous_Click" IsEnabled="False" />
-            <AppBarButton x:Name="NextButton" Icon="Forward" Label="Next" Click="Next_Click" IsEnabled="False" />
-            <AppBarSeparator />
-            <AppBarButton Icon="Rotate" Label="Rotate left" IsEnabled="False" ToolTipService.ToolTip="Persistent rotation is the next implementation milestone" />
-            <AppBarButton Icon="Rotate" Label="Rotate right" IsEnabled="False" ToolTipService.ToolTip="Persistent rotation is the next implementation milestone" />
-            <AppBarButton x:Name="RenameButton" Icon="Rename" Label="Rename" Click="Rename_Click" IsEnabled="False" />
-            <AppBarButton x:Name="DeleteButton" Icon="Delete" Label="Recycle" Click="Delete_Click" IsEnabled="False" />
-        </CommandBar>
+    <Grid x:Name="RootGrid" Background="Black" KeyDown="Window_KeyDown">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
 
-        <Grid Grid.Row="1">
-            <Image x:Name="PhotoImage" Stretch="Uniform" Margin="12" />
-            <StackPanel x:Name="WelcomePanel" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12">
-                <FontIcon Glyph="&#xEB9F;" FontSize="56" Foreground="#999999" />
-                <TextBlock Text="Glass Photos for Windows" FontSize="24" Foreground="White" HorizontalAlignment="Center" />
-                <TextBlock Text="Open a photo to load its folder and browse with Left and Right." Foreground="#BBBBBB" />
-                <Button Content="Open photo" HorizontalAlignment="Center" Click="Open_Click" />
-            </StackPanel>
+        <Grid Grid.Column="0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Border x:Name="TopHeader"
+                    Grid.Row="0"
+                    Padding="16,12"
+                    Background="#ED000000"
+                    BorderBrush="#303030"
+                    BorderThickness="0,0,0,1"
+                    Visibility="Collapsed">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <TextBlock x:Name="FileNameText"
+                                   MaxWidth="440"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Foreground="White"
+                                   TextTrimming="CharacterEllipsis"
+                                   VerticalAlignment="Center"
+                                   Tapped="FileName_Tapped" />
+                        <StackPanel x:Name="RenamePanel" Orientation="Horizontal" Spacing="3" Visibility="Collapsed">
+                            <TextBox x:Name="RenameTextBox"
+                                     MinWidth="180"
+                                     MaxWidth="420"
+                                     Height="34"
+                                     VerticalContentAlignment="Center"
+                                     KeyDown="RenameTextBox_KeyDown" />
+                            <TextBlock x:Name="ExtensionText"
+                                       FontSize="16"
+                                       FontWeight="SemiBold"
+                                       Foreground="#A1A1A6"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                        <Border x:Name="CounterPill"
+                                Padding="8,4"
+                                Background="#303033"
+                                CornerRadius="6">
+                            <TextBlock x:Name="PositionText"
+                                       FontSize="13"
+                                       FontWeight="SemiBold"
+                                       Foreground="White" />
+                        </Border>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <Button x:Name="RenameButton"
+                                Content="Rename"
+                                Padding="12,5"
+                                MinWidth="68"
+                                Height="32"
+                                CornerRadius="6"
+                                Click="Rename_Click" />
+                        <Button x:Name="RotateLeftButton"
+                                Style="{StaticResource PlainHeaderButton}"
+                                IsEnabled="False"
+                                ToolTipService.ToolTip="Rotate counter-clockwise">
+                            <TextBlock Text="↶" FontSize="25" />
+                        </Button>
+                        <Button x:Name="RotateRightButton"
+                                Style="{StaticResource PlainHeaderButton}"
+                                IsEnabled="False"
+                                ToolTipService.ToolTip="Rotate clockwise">
+                            <TextBlock Text="↷" FontSize="25" />
+                        </Button>
+                        <Button x:Name="InfoButton"
+                                Style="{StaticResource HeaderIconButton}"
+                                Click="Info_Click"
+                                ToolTipService.ToolTip="Show Image Info">
+                            <TextBlock Text="ⓘ" FontSize="22" />
+                        </Button>
+                        <Button x:Name="ShareButton"
+                                Style="{StaticResource HeaderIconButton}"
+                                IsEnabled="False"
+                                ToolTipService.ToolTip="Share Image">
+                            <TextBlock Text="↥" FontSize="24" />
+                        </Button>
+                        <Button x:Name="FullScreenButton"
+                                Style="{StaticResource HeaderIconButton}"
+                                Click="FullScreen_Click"
+                                ToolTipService.ToolTip="Enter Full Screen">
+                            <TextBlock Text="⛶" FontSize="22" />
+                        </Button>
+                        <Button x:Name="DeleteButton"
+                                Style="{StaticResource HeaderIconButton}"
+                                Click="Delete_Click"
+                                ToolTipService.ToolTip="Move to Recycle Bin">
+                            <TextBlock Text="" FontFamily="Segoe Fluent Icons" FontSize="20" Foreground="#FF453A" />
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Grid Grid.Row="1" Background="Black">
+                <Image x:Name="PhotoImage" Stretch="Uniform" />
+
+                <StackPanel x:Name="WelcomePanel"
+                            Width="400"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Spacing="20">
+                    <Border Width="80" Height="80" CornerRadius="16" HorizontalAlignment="Center">
+                        <Image Source="ms-appx:///Assets/GlassPhotos.png" Stretch="UniformToFill" />
+                    </Border>
+                    <TextBlock Text="Glass Photos"
+                               FontSize="32"
+                               FontWeight="Light"
+                               Foreground="White"
+                               HorizontalAlignment="Center" />
+                    <Button Content="Open Folder…"
+                            FontSize="15"
+                            Padding="14,8"
+                            HorizontalAlignment="Center"
+                            Click="OpenFolder_Click" />
+                </StackPanel>
+            </Grid>
         </Grid>
 
-        <Border Grid.Row="2" Background="#CC1A1A1A" Padding="12,8">
-            <Grid ColumnSpacing="16">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <TextBlock x:Name="FileNameText" Text="No photo selected" Foreground="White" TextTrimming="CharacterEllipsis" />
-                <TextBlock x:Name="PositionText" Grid.Column="1" Foreground="#BBBBBB" />
+        <Border x:Name="InfoSidebar"
+                Grid.Column="1"
+                Width="300"
+                Background="Black"
+                BorderBrush="#303030"
+                BorderThickness="1,0,0,0"
+                Visibility="Collapsed">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Border Grid.Row="0"
+                        Padding="16,12"
+                        Background="#ED000000"
+                        BorderBrush="#303030"
+                        BorderThickness="0,0,0,1">
+                    <Grid>
+                        <TextBlock Text="Image Info"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Foreground="White"
+                                   VerticalAlignment="Center" />
+                        <Button HorizontalAlignment="Right"
+                                Style="{StaticResource HeaderIconButton}"
+                                Click="CloseInfo_Click"
+                                ToolTipService.ToolTip="Close Image Info">
+                            <TextBlock Text="×" FontSize="26" FontWeight="Light" />
+                        </Button>
+                    </Grid>
+                </Border>
+
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Padding="16" Spacing="16">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="FILE NAME" Style="{StaticResource InfoLabel}" />
+                            <TextBlock x:Name="InfoFileName" Style="{StaticResource InfoValue}" />
+                        </StackPanel>
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="FILE PATH" Style="{StaticResource InfoLabel}" />
+                            <TextBlock x:Name="InfoFilePath" Style="{StaticResource InfoValue}" />
+                        </StackPanel>
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="FILE SIZE" Style="{StaticResource InfoLabel}" />
+                            <TextBlock x:Name="InfoFileSize" Style="{StaticResource InfoValue}" />
+                        </StackPanel>
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="MODIFIED" Style="{StaticResource InfoLabel}" />
+                            <TextBlock x:Name="InfoModified" Style="{StaticResource InfoValue}" />
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
             </Grid>
         </Border>
     </Grid>

@@ -21,6 +21,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Content Include="Assets\GlassPhotos.png" CopyToOutputDirectory="PreserveNewest" />
     <Manifest Include="$(ApplicationManifest)" />
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.9169" />
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.4.0" />

@@ -1,4 +1,6 @@
 using GlassPhotos.Core;
+using Microsoft.UI;
+using Microsoft.UI.Windowing;
 using Microsoft.VisualBasic.FileIO;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -7,6 +9,7 @@ using Microsoft.UI.Xaml.Media.Imaging;
 using Windows.Storage;
 using Windows.Storage.Pickers;
 using Windows.System;
+using WinRT.Interop;
 
 namespace GlassPhotos.WinUI;
 
@@ -15,13 +18,18 @@ public sealed partial class MainWindow : Window
     private readonly string? _initialPath;
     private readonly AsyncLruCache<string, BitmapImage> _imageCache =
         new(capacity: 7, StringComparer.OrdinalIgnoreCase);
+    private readonly AppWindow _appWindow;
     private PhotoCollection? _photos;
     private long _loadGeneration;
+    private bool _isRenaming;
+    private bool _isFullScreen;
 
     public MainWindow(string? initialPath)
     {
         InitializeComponent();
         _initialPath = initialPath;
+        var windowHandle = WindowNative.GetWindowHandle(this);
+        _appWindow = AppWindow.GetFromWindowId(Win32Interop.GetWindowIdFromWindow(windowHandle));
         Activated += MainWindow_Activated;
     }
 
@@ -34,32 +42,23 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private async void Open_Click(object sender, RoutedEventArgs e)
+    private async void OpenFolder_Click(object sender, RoutedEventArgs e)
     {
-        var picker = new FileOpenPicker();
-        picker.FileTypeFilter.Add(".jpg");
-        picker.FileTypeFilter.Add(".jpeg");
-        picker.FileTypeFilter.Add(".png");
-        picker.FileTypeFilter.Add(".heic");
-        picker.FileTypeFilter.Add(".heif");
-        picker.FileTypeFilter.Add(".tif");
-        picker.FileTypeFilter.Add(".tiff");
-        picker.FileTypeFilter.Add(".gif");
-        picker.FileTypeFilter.Add(".bmp");
-        picker.FileTypeFilter.Add(".webp");
-        picker.FileTypeFilter.Add(".dng");
-        picker.FileTypeFilter.Add(".nef");
-        picker.FileTypeFilter.Add(".cr2");
-        picker.FileTypeFilter.Add(".arw");
-        picker.FileTypeFilter.Add(".raf");
+        var picker = new FolderPicker();
+        picker.FileTypeFilter.Add("*");
+        InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(this));
 
-        var windowHandle = WinRT.Interop.WindowNative.GetWindowHandle(this);
-        WinRT.Interop.InitializeWithWindow.Initialize(picker, windowHandle);
+        var folder = await picker.PickSingleFolderAsync();
+        if (folder is null) return;
 
-        var file = await picker.PickSingleFileAsync();
-        if (file is not null)
+        try
         {
-            await OpenPhotoAsync(file.Path);
+            _photos = PhotoCollection.OpenDirectory(folder.Path);
+            await DisplayCurrentPhotoAsync();
+        }
+        catch (Exception exception)
+        {
+            await ShowErrorAsync("Could not open folder", exception.Message);
         }
     }
 
@@ -80,6 +79,7 @@ public sealed partial class MainWindow : Window
     {
         if (_photos is null) return;
 
+        CancelRename();
         var generation = Interlocked.Increment(ref _loadGeneration);
         var path = _photos.CurrentPath;
         var bitmap = await _imageCache.GetAsync(path, LoadBitmapAsync);
@@ -88,14 +88,17 @@ public sealed partial class MainWindow : Window
 
         PhotoImage.Source = bitmap;
         WelcomePanel.Visibility = Visibility.Collapsed;
+        TopHeader.Visibility = Visibility.Visible;
         FileNameText.Text = Path.GetFileName(path);
         ToolTipService.SetToolTip(FileNameText, path);
-        PositionText.Text = $"{_photos.CurrentIndex + 1} / {_photos.Files.Count}";
-        PreviousButton.IsEnabled = _photos.CurrentIndex > 0;
-        NextButton.IsEnabled = _photos.CurrentIndex < _photos.Files.Count - 1;
+        PositionText.Text = $"({_photos.CurrentIndex + 1}/{_photos.Files.Count})";
+        CounterPill.Visibility = _photos.Files.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
         RenameButton.IsEnabled = true;
         DeleteButton.IsEnabled = true;
+        InfoButton.IsEnabled = true;
+        FullScreenButton.IsEnabled = true;
         Title = $"{Path.GetFileName(path)} — Glass Photos";
+        UpdateImageInfo(path);
         _ = PrefetchNeighboursAsync();
     }
 
@@ -127,48 +130,85 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private void FileName_Tapped(object sender, TappedRoutedEventArgs e) => BeginRename();
+
     private async void Rename_Click(object sender, RoutedEventArgs e)
     {
-        if (_photos is null) return;
-
-        var nameBox = new TextBox
+        if (_isRenaming)
         {
-            Text = Path.GetFileNameWithoutExtension(_photos.CurrentPath)
-        };
-        var dialog = new ContentDialog
+            await CommitRenameAsync();
+        }
+        else
         {
-            Title = "Rename photo",
-            Content = nameBox,
-            PrimaryButtonText = "Rename",
-            CloseButtonText = "Cancel",
-            DefaultButton = ContentDialogButton.Primary,
-            XamlRoot = Content.XamlRoot
-        };
+            BeginRename();
+        }
+    }
 
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+    private void BeginRename()
+    {
+        if (_photos is null || _isRenaming) return;
+
+        _isRenaming = true;
+        RenameTextBox.Text = Path.GetFileNameWithoutExtension(_photos.CurrentPath);
+        ExtensionText.Text = Path.GetExtension(_photos.CurrentPath);
+        FileNameText.Visibility = Visibility.Collapsed;
+        RenamePanel.Visibility = Visibility.Visible;
+        RenameButton.Content = "Done";
+        RenameTextBox.Focus(FocusState.Programmatic);
+        RenameTextBox.SelectAll();
+    }
+
+    private async Task CommitRenameAsync()
+    {
+        if (_photos is null || !_isRenaming) return;
 
         try
         {
             var previousPath = _photos.CurrentPath;
-            _photos.RenameCurrent(nameBox.Text);
+            _photos.RenameCurrent(RenameTextBox.Text);
             _imageCache.Remove(previousPath);
             await DisplayCurrentPhotoAsync();
         }
         catch (Exception exception)
         {
             await ShowErrorAsync("Could not rename photo", exception.Message);
+            RenameTextBox.Focus(FocusState.Programmatic);
         }
     }
 
-    private async void Delete_Click(object sender, RoutedEventArgs e)
+    private void CancelRename()
+    {
+        _isRenaming = false;
+        FileNameText.Visibility = Visibility.Visible;
+        RenamePanel.Visibility = Visibility.Collapsed;
+        RenameButton.Content = "Rename";
+    }
+
+    private async void RenameTextBox_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key == VirtualKey.Enter)
+        {
+            e.Handled = true;
+            await CommitRenameAsync();
+        }
+        else if (e.Key == VirtualKey.Escape)
+        {
+            e.Handled = true;
+            CancelRename();
+        }
+    }
+
+    private async void Delete_Click(object sender, RoutedEventArgs e) => await DeleteCurrentAsync();
+
+    private async Task DeleteCurrentAsync()
     {
         if (_photos is null) return;
 
         var path = _photos.CurrentPath;
         var dialog = new ContentDialog
         {
-            Title = "Move photo to Recycle Bin?",
-            Content = Path.GetFileName(path),
+            Title = $"Move “{Path.GetFileName(path)}” to the Recycle Bin?",
+            Content = "You can recover it from the Recycle Bin until it is emptied.",
             PrimaryButtonText = "Move to Recycle Bin",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Close,
@@ -201,38 +241,65 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private void Info_Click(object sender, RoutedEventArgs e)
+    {
+        InfoSidebar.Visibility = InfoSidebar.Visibility == Visibility.Visible
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+    }
+
+    private void CloseInfo_Click(object sender, RoutedEventArgs e) =>
+        InfoSidebar.Visibility = Visibility.Collapsed;
+
+    private void UpdateImageInfo(string path)
+    {
+        var info = new FileInfo(path);
+        InfoFileName.Text = info.Name;
+        InfoFilePath.Text = info.FullName;
+        InfoFileSize.Text = FormatFileSize(info.Length);
+        InfoModified.Text = info.LastWriteTime.ToString("g");
+    }
+
+    private static string FormatFileSize(long bytes)
+    {
+        string[] units = ["B", "KB", "MB", "GB"];
+        var value = (double)bytes;
+        var unit = 0;
+        while (value >= 1024 && unit < units.Length - 1)
+        {
+            value /= 1024;
+            unit++;
+        }
+        return unit == 0 ? $"{value:0} {units[unit]}" : $"{value:0.#} {units[unit]}";
+    }
+
+    private void FullScreen_Click(object sender, RoutedEventArgs e) => ToggleFullScreen();
+
+    private void ToggleFullScreen()
+    {
+        _isFullScreen = !_isFullScreen;
+        _appWindow.SetPresenter(_isFullScreen
+            ? AppWindowPresenterKind.FullScreen
+            : AppWindowPresenterKind.Overlapped);
+        TopHeader.Visibility = _isFullScreen ? Visibility.Collapsed : Visibility.Visible;
+        InfoSidebar.Visibility = _isFullScreen ? Visibility.Collapsed : InfoSidebar.Visibility;
+    }
+
     private void ClearPhoto()
     {
+        CancelRename();
         PhotoImage.Source = null;
         WelcomePanel.Visibility = Visibility.Visible;
-        FileNameText.Text = "No photo selected";
-        PositionText.Text = string.Empty;
-        PreviousButton.IsEnabled = false;
-        NextButton.IsEnabled = false;
-        RenameButton.IsEnabled = false;
-        DeleteButton.IsEnabled = false;
+        TopHeader.Visibility = Visibility.Collapsed;
+        InfoSidebar.Visibility = Visibility.Collapsed;
         Title = "Glass Photos";
         _photos = null;
     }
 
-    private async void Previous_Click(object sender, RoutedEventArgs e)
-    {
-        if (_photos?.MovePrevious() == true)
-        {
-            await DisplayCurrentPhotoAsync();
-        }
-    }
-
-    private async void Next_Click(object sender, RoutedEventArgs e)
-    {
-        if (_photos?.MoveNext() == true)
-        {
-            await DisplayCurrentPhotoAsync();
-        }
-    }
-
     private async void Window_KeyDown(object sender, KeyRoutedEventArgs e)
     {
+        if (_isRenaming) return;
+
         if (e.Key == VirtualKey.Left && _photos?.MovePrevious() == true)
         {
             e.Handled = true;
@@ -242,6 +309,26 @@ public sealed partial class MainWindow : Window
         {
             e.Handled = true;
             await DisplayCurrentPhotoAsync();
+        }
+        else if (e.Key == VirtualKey.Enter && _photos is not null)
+        {
+            e.Handled = true;
+            BeginRename();
+        }
+        else if (e.Key == VirtualKey.Delete && _photos is not null)
+        {
+            e.Handled = true;
+            await DeleteCurrentAsync();
+        }
+        else if (e.Key == VirtualKey.F && _photos is not null)
+        {
+            e.Handled = true;
+            ToggleFullScreen();
+        }
+        else if (e.Key == VirtualKey.Escape && _isFullScreen)
+        {
+            e.Handled = true;
+            ToggleFullScreen();
         }
     }
 

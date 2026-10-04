@@ -96,11 +96,7 @@ public sealed class PhotoCollection
         var directory = Path.GetDirectoryName(fullPath)
             ?? throw new InvalidOperationException("The selected photo has no containing folder.");
 
-        var files = Directory.EnumerateFiles(directory)
-            .Where(path => SupportedExtensions.Contains(Path.GetExtension(path)))
-            .OrderBy(path => Path.GetFileName(path), NaturalFileNameComparer.Instance)
-            .Select(Path.GetFullPath)
-            .ToArray();
+        var files = EnumerateSupportedFiles(directory);
 
         var index = Array.FindIndex(files, path => string.Equals(path, fullPath, StringComparison.OrdinalIgnoreCase));
         if (index < 0)
@@ -110,6 +106,31 @@ public sealed class PhotoCollection
 
         return new PhotoCollection(files, index);
     }
+
+    public static PhotoCollection OpenDirectory(string directoryPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(directoryPath);
+        var directory = Path.GetFullPath(directoryPath);
+        if (!Directory.Exists(directory))
+        {
+            throw new DirectoryNotFoundException($"The folder '{directory}' does not exist.");
+        }
+
+        var files = EnumerateSupportedFiles(directory);
+        if (files.Length == 0)
+        {
+            throw new InvalidOperationException("The selected folder contains no supported photos.");
+        }
+
+        return new PhotoCollection(files, currentIndex: 0);
+    }
+
+    private static string[] EnumerateSupportedFiles(string directory) =>
+        Directory.EnumerateFiles(directory)
+            .Where(path => SupportedExtensions.Contains(Path.GetExtension(path)))
+            .OrderBy(path => Path.GetFileName(path), NaturalFileNameComparer.Instance)
+            .Select(Path.GetFullPath)
+            .ToArray();
 
     private sealed class NaturalFileNameComparer : IComparer<string>
     {
