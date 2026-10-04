@@ -112,13 +112,13 @@
                                 Click="Rename_Click" />
                         <Button x:Name="RotateLeftButton"
                                 Style="{StaticResource PlainHeaderButton}"
-                                IsEnabled="False"
+                                Click="RotateLeft_Click"
                                 ToolTipService.ToolTip="Rotate counter-clockwise">
                             <TextBlock Text="↶" FontSize="25" />
                         </Button>
                         <Button x:Name="RotateRightButton"
                                 Style="{StaticResource PlainHeaderButton}"
-                                IsEnabled="False"
+                                Click="RotateRight_Click"
                                 ToolTipService.ToolTip="Rotate clockwise">
                             <TextBlock Text="↷" FontSize="25" />
                         </Button>
@@ -130,7 +130,7 @@
                         </Button>
                         <Button x:Name="ShareButton"
                                 Style="{StaticResource HeaderIconButton}"
-                                IsEnabled="False"
+                                Click="Share_Click"
                                 ToolTipService.ToolTip="Share Image">
                             <TextBlock Text="↥" FontSize="24" />
                         </Button>
@@ -209,24 +209,7 @@
                 </Border>
 
                 <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                    <StackPanel Padding="16" Spacing="16">
-                        <StackPanel Spacing="4">
-                            <TextBlock Text="FILE NAME" Style="{StaticResource InfoLabel}" />
-                            <TextBlock x:Name="InfoFileName" Style="{StaticResource InfoValue}" />
-                        </StackPanel>
-                        <StackPanel Spacing="4">
-                            <TextBlock Text="FILE PATH" Style="{StaticResource InfoLabel}" />
-                            <TextBlock x:Name="InfoFilePath" Style="{StaticResource InfoValue}" />
-                        </StackPanel>
-                        <StackPanel Spacing="4">
-                            <TextBlock Text="FILE SIZE" Style="{StaticResource InfoLabel}" />
-                            <TextBlock x:Name="InfoFileSize" Style="{StaticResource InfoValue}" />
-                        </StackPanel>
-                        <StackPanel Spacing="4">
-                            <TextBlock Text="MODIFIED" Style="{StaticResource InfoLabel}" />
-                            <TextBlock x:Name="InfoModified" Style="{StaticResource InfoValue}" />
-                        </StackPanel>
-                    </StackPanel>
+                    <StackPanel x:Name="InfoRows" Padding="16" Spacing="16" />
                 </ScrollViewer>
             </Grid>
         </Border>

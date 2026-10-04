@@ -16,7 +16,11 @@ public sealed class WindowsInterfaceParityTests
         Assert.Contains("Text=\"Glass Photos\"", xaml);
         Assert.Contains("x:Name=\"RenamePanel\"", xaml);
         Assert.Contains("x:Name=\"RotateLeftButton\"", xaml);
+        Assert.Contains("Click=\"RotateLeft_Click\"", xaml);
         Assert.Contains("x:Name=\"RotateRightButton\"", xaml);
+        Assert.Contains("Click=\"RotateRight_Click\"", xaml);
+        Assert.Contains("x:Name=\"InfoRows\"", xaml);
+        Assert.Contains("Click=\"Share_Click\"", xaml);
         Assert.Contains("x:Name=\"FullScreenButton\"", xaml);
         Assert.Contains("x:Name=\"DeleteButton\"", xaml);
         Assert.DoesNotContain("<CommandBar", xaml);

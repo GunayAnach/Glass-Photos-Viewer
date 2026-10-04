@@ -6,19 +6,38 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media.Imaging;
+using System.Runtime.InteropServices;
+using Windows.ApplicationModel.DataTransfer;
+using Windows.Graphics.Imaging;
 using Windows.Storage;
 using Windows.Storage.Pickers;
 using Windows.System;
+using WinRT;
 using WinRT.Interop;
 
 namespace GlassPhotos.WinUI;
 
 public sealed partial class MainWindow : Window
 {
+    [ComImport]
+    [Guid("3A3DCD6C-3EAB-43DC-BCDE-45671CE800C8")]
+    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IDataTransferManagerInterop
+    {
+        nint GetForWindow([In] nint appWindow, [In] ref Guid riid);
+        void ShowShareUIForWindow(nint appWindow);
+    }
+
+    private static readonly Guid DataTransferManagerIid =
+        new(0xa5caee9b, 0x8708, 0x49d1, 0x8d, 0x36, 0x67, 0xd2, 0x5a, 0x8d, 0xa0, 0x0c);
+
     private readonly string? _initialPath;
     private readonly AsyncLruCache<string, BitmapImage> _imageCache =
         new(capacity: 7, StringComparer.OrdinalIgnoreCase);
     private readonly AppWindow _appWindow;
+    private readonly nint _windowHandle;
+    private readonly IDataTransferManagerInterop _shareInterop;
+    private readonly DataTransferManager _shareManager;
     private PhotoCollection? _photos;
     private long _loadGeneration;
     private bool _isRenaming;
@@ -28,8 +47,13 @@ public sealed partial class MainWindow : Window
     {
         InitializeComponent();
         _initialPath = initialPath;
-        var windowHandle = WindowNative.GetWindowHandle(this);
-        _appWindow = AppWindow.GetFromWindowId(Win32Interop.GetWindowIdFromWindow(windowHandle));
+        _windowHandle = WindowNative.GetWindowHandle(this);
+        _appWindow = AppWindow.GetFromWindowId(Win32Interop.GetWindowIdFromWindow(_windowHandle));
+        _shareInterop = DataTransferManager.As<IDataTransferManagerInterop>();
+        var shareManagerIid = DataTransferManagerIid;
+        var shareManagerPointer = _shareInterop.GetForWindow(_windowHandle, ref shareManagerIid);
+        _shareManager = MarshalInterface<DataTransferManager>.FromAbi(shareManagerPointer);
+        _shareManager.DataRequested += ShareManager_DataRequested;
         Activated += MainWindow_Activated;
     }
 
@@ -46,7 +70,7 @@ public sealed partial class MainWindow : Window
     {
         var picker = new FolderPicker();
         picker.FileTypeFilter.Add("*");
-        InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(this));
+        InitializeWithWindow.Initialize(picker, _windowHandle);
 
         var folder = await picker.PickSingleFolderAsync();
         if (folder is null) return;
@@ -94,11 +118,14 @@ public sealed partial class MainWindow : Window
         PositionText.Text = $"({_photos.CurrentIndex + 1}/{_photos.Files.Count})";
         CounterPill.Visibility = _photos.Files.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
         RenameButton.IsEnabled = true;
+        RotateLeftButton.IsEnabled = true;
+        RotateRightButton.IsEnabled = true;
         DeleteButton.IsEnabled = true;
         InfoButton.IsEnabled = true;
+        ShareButton.IsEnabled = true;
         FullScreenButton.IsEnabled = true;
         Title = $"{Path.GetFileName(path)} — Glass Photos";
-        UpdateImageInfo(path);
+        _ = UpdateImageInfoAsync(path, generation);
         _ = PrefetchNeighboursAsync();
     }
 
@@ -241,6 +268,122 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private async void RotateLeft_Click(object sender, RoutedEventArgs e) =>
+        await RotateCurrentAsync(BitmapRotation.Clockwise270Degrees);
+
+    private async void RotateRight_Click(object sender, RoutedEventArgs e) =>
+        await RotateCurrentAsync(BitmapRotation.Clockwise90Degrees);
+
+    private async Task RotateCurrentAsync(BitmapRotation rotation)
+    {
+        if (_photos is null) return;
+
+        var path = _photos.CurrentPath;
+        StorageFile? temporaryFile = null;
+        try
+        {
+            RotateLeftButton.IsEnabled = false;
+            RotateRightButton.IsEnabled = false;
+
+            var sourceFile = await StorageFile.GetFileFromPathAsync(path);
+            var folder = await sourceFile.GetParentAsync();
+            var extension = sourceFile.FileType.ToLowerInvariant();
+            var encoderId = EncoderIdForExtension(extension);
+            temporaryFile = await folder.CreateFileAsync(
+                $".glassphotos-{Guid.NewGuid():N}{extension}",
+                CreationCollisionOption.FailIfExists);
+
+            using (var sourceStream = await sourceFile.OpenAsync(FileAccessMode.Read))
+            {
+                var decoder = await BitmapDecoder.CreateAsync(sourceStream);
+                var transform = new BitmapTransform { Rotation = rotation };
+                var pixels = await decoder.GetPixelDataAsync(
+                    BitmapPixelFormat.Bgra8,
+                    BitmapAlphaMode.Premultiplied,
+                    transform,
+                    ExifOrientationMode.RespectExifOrientation,
+                    ColorManagementMode.ColorManageToSRgb);
+
+                using var outputStream = await temporaryFile.OpenAsync(FileAccessMode.ReadWrite);
+                var encoder = await BitmapEncoder.CreateAsync(encoderId, outputStream);
+                encoder.SetPixelData(
+                    BitmapPixelFormat.Bgra8,
+                    BitmapAlphaMode.Premultiplied,
+                    decoder.PixelHeight,
+                    decoder.PixelWidth,
+                    decoder.DpiX,
+                    decoder.DpiY,
+                    pixels.DetachPixelData());
+                await encoder.FlushAsync();
+            }
+
+            await temporaryFile.MoveAndReplaceAsync(sourceFile);
+            temporaryFile = null;
+            _imageCache.Remove(path);
+            await DisplayCurrentPhotoAsync();
+        }
+        catch (Exception exception)
+        {
+            if (temporaryFile is not null)
+            {
+                try { await temporaryFile.DeleteAsync(StorageDeleteOption.PermanentDelete); }
+                catch { }
+            }
+            await ShowErrorAsync("Could not rotate photo", exception.Message);
+        }
+        finally
+        {
+            RotateLeftButton.IsEnabled = _photos is not null;
+            RotateRightButton.IsEnabled = _photos is not null;
+        }
+    }
+
+    private static Guid EncoderIdForExtension(string extension) => extension switch
+    {
+        ".jpg" or ".jpeg" => BitmapEncoder.JpegEncoderId,
+        ".png" => BitmapEncoder.PngEncoderId,
+        ".tif" or ".tiff" => BitmapEncoder.TiffEncoderId,
+        ".bmp" => BitmapEncoder.BmpEncoderId,
+        ".gif" => BitmapEncoder.GifEncoderId,
+        _ => throw new NotSupportedException(
+            $"Persistent rotation is not supported for {extension} images on Windows.")
+    };
+
+    private void Share_Click(object sender, RoutedEventArgs e)
+    {
+        if (_photos is not null)
+        {
+            _shareInterop.ShowShareUIForWindow(_windowHandle);
+        }
+    }
+
+    private async void ShareManager_DataRequested(DataTransferManager sender, DataRequestedEventArgs args)
+    {
+        var deferral = args.Request.GetDeferral();
+        try
+        {
+            if (_photos is null)
+            {
+                args.Request.FailWithDisplayText("No photo is open.");
+                return;
+            }
+
+            var file = await StorageFile.GetFileFromPathAsync(_photos.CurrentPath);
+            args.Request.Data.Properties.Title = file.Name;
+            args.Request.Data.Properties.Description = "Shared from Glass Photos";
+            args.Request.Data.RequestedOperation = DataPackageOperation.Copy;
+            args.Request.Data.SetStorageItems([file]);
+        }
+        catch (Exception exception)
+        {
+            args.Request.FailWithDisplayText(exception.Message);
+        }
+        finally
+        {
+            deferral.Complete();
+        }
+    }
+
     private void Info_Click(object sender, RoutedEventArgs e)
     {
         InfoSidebar.Visibility = InfoSidebar.Visibility == Visibility.Visible
@@ -251,13 +394,73 @@ public sealed partial class MainWindow : Window
     private void CloseInfo_Click(object sender, RoutedEventArgs e) =>
         InfoSidebar.Visibility = Visibility.Collapsed;
 
-    private void UpdateImageInfo(string path)
+    private async Task UpdateImageInfoAsync(string path, long generation)
     {
         var info = new FileInfo(path);
-        InfoFileName.Text = info.Name;
-        InfoFilePath.Text = info.FullName;
-        InfoFileSize.Text = FormatFileSize(info.Length);
-        InfoModified.Text = info.LastWriteTime.ToString("g");
+        var rows = new List<(string Title, string Value)>
+        {
+            ("File Name", info.Name),
+            ("File Path", info.FullName)
+        };
+
+        try
+        {
+            var file = await StorageFile.GetFileFromPathAsync(path);
+            var imageProperties = await file.Properties.GetImagePropertiesAsync();
+            if (imageProperties.DateTaken.Year > 1601)
+            {
+                rows.Add(("Date Taken", imageProperties.DateTaken.ToString("g")));
+            }
+
+            rows.Add(("File Size", FormatFileSize(info.Length)));
+            if (imageProperties.Width > 0 && imageProperties.Height > 0)
+            {
+                rows.Add(("Dimensions", $"{imageProperties.Width} × {imageProperties.Height}"));
+            }
+            if (!string.IsNullOrWhiteSpace(imageProperties.CameraManufacturer))
+            {
+                rows.Add(("Camera Make", imageProperties.CameraManufacturer));
+            }
+            if (!string.IsNullOrWhiteSpace(imageProperties.CameraModel))
+            {
+                rows.Add(("Camera Model", imageProperties.CameraModel));
+            }
+            if (imageProperties.Latitude is double latitude &&
+                imageProperties.Longitude is double longitude)
+            {
+                rows.Add(("GPS Coordinates", $"{latitude}, {longitude}"));
+            }
+        }
+        catch
+        {
+            rows.Add(("File Size", FormatFileSize(info.Length)));
+        }
+
+        rows.Add(("Modified", info.LastWriteTime.ToString("g")));
+        rows.Add(("Created", info.CreationTime.ToString("g")));
+
+        if (generation != _loadGeneration) return;
+        InfoRows.Children.Clear();
+        foreach (var row in rows)
+        {
+            AddInfoRow(row.Title, row.Value);
+        }
+    }
+
+    private void AddInfoRow(string title, string value)
+    {
+        var panel = new StackPanel { Spacing = 4 };
+        panel.Children.Add(new TextBlock
+        {
+            Text = title.ToUpperInvariant(),
+            Style = (Style)RootGrid.Resources["InfoLabel"]
+        });
+        panel.Children.Add(new TextBlock
+        {
+            Text = value,
+            Style = (Style)RootGrid.Resources["InfoValue"]
+        });
+        InfoRows.Children.Add(panel);
     }
 
     private static string FormatFileSize(long bytes)
