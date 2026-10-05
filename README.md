@@ -12,7 +12,7 @@ A fast, native photo viewer for **macOS and Windows** with a consistent interfac
 | Platform | Technology | Distribution |
 |---|---|---|
 | macOS | SwiftUI and AppKit | `Glass Photos.app` in a ZIP |
-| Windows 10/11 x64 | C#, .NET, and WinUI 3 | Portable self-contained ZIP; no installer |
+| Windows 10/11 x64 | C#, .NET, and WinUI 3 | Simple installer with file associations, plus portable ZIP |
 
 The two applications use the same dark image canvas, welcome screen, top controls, inline rename flow, image counter, metadata sidebar, cropping workflow, and keyboard controls while retaining native platform integration.
 
@@ -91,11 +91,11 @@ To make it the default viewer for a format, select an image in Finder, choose **
 
 ### Windows
 
-1. Download the Windows x64 portable ZIP from [Releases](https://github.com/GunayAnach/Glass-Photos-Viewer/releases).
-2. Extract the **entire ZIP** to a folder.
-3. Run `GlassPhotos.WinUI.exe`.
+1. Download `Glass-Photos-Windows-x64-Setup.exe` from [Releases](https://github.com/GunayAnach/Glass-Photos-Viewer/releases).
+2. Run the installer. It installs for the current user and does not require administrator access.
+3. Choose **Glass Photos** from **Open with** or Windows **Default apps** for the image formats you want it to open.
 
-The adjacent DLL, runtime, PRI, and resource files are required by WinUI 3 and must remain beside the executable. No installer or MSIX registration is required.
+The installer registers JPG, JPEG, PNG, HEIC, HEIF, TIF, TIFF, GIF, BMP, WebP, DNG, NEF, CR2, ARW, and RAF associations. Windows protects each user's existing default-app choices, so installation makes Glass Photos available without silently replacing current defaults. A self-contained portable ZIP remains available for users who prefer no installation.
 
 ## System requirements
 
@@ -127,9 +127,10 @@ Build on Windows with the .NET 10 SDK and Windows SDK 10.0.26100:
 dotnet test windows/GlassPhotos.Core.Tests/GlassPhotos.Core.Tests.csproj
 dotnet build windows/GlassPhotos.WinUI/GlassPhotos.WinUI.csproj -p:Platform=x64
 ./windows/publish-windows.ps1 -Architecture x64
+./windows/build-installer.ps1 -Architecture x64
 ```
 
-The published artifact is `dist/Glass-Photos-Windows-x64.zip`.
+The published artifacts are `dist/Glass-Photos-Windows-x64.zip` and `dist/Glass-Photos-Windows-x64-Setup.exe`. Building the installer requires Inno Setup 6.
 
 ## Bugs and contributions
 

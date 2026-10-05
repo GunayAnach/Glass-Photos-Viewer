@@ -13,7 +13,8 @@ All notable changes to **Glass Photos** are recorded here. macOS and Windows now
   - Press the green tick or `Enter`/`Return` to crop and overwrite the current image.
   - Press `Esc` to cancel.
 - Complete Windows keyboard controls matching the macOS application.
-- Portable self-contained Windows ZIP distribution with no installer.
+- Simple current-user Windows installer with Open with and Default Apps registration for every supported image format.
+- Portable self-contained Windows ZIP distribution for no-install use.
 - Windows Share panel and Recycle Bin integration.
 - Repository link in the macOS Help menu and project documentation.
 

@@ -35,6 +35,13 @@ jobs:
         shell: pwsh
         run: ./windows/publish-windows.ps1 -Architecture x64
 
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Build Windows installer
+        shell: pwsh
+        run: ./windows/build-installer.ps1 -Architecture x64
+
       - name: Smoke test portable app startup
         shell: pwsh
         run: |
@@ -46,9 +53,48 @@ jobs:
           }
           Stop-Process -Id $process.Id -Force
 
+      - name: Smoke test installer and file associations
+        shell: pwsh
+        run: |
+          $installer = Resolve-Path "dist/Glass-Photos-Windows-x64-Setup.exe"
+          $install = Start-Process $installer -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-" -Wait -PassThru
+          if ($install.ExitCode -ne 0) {
+            throw "Installer exited with code $($install.ExitCode)."
+          }
+
+          $installedExe = Join-Path $env:LOCALAPPDATA "Programs/Glass Photos/GlassPhotos.WinUI.exe"
+          if (-not (Test-Path $installedExe)) {
+            throw "Installer did not create the expected application executable."
+          }
+
+          $openCommandKey = Get-Item "Registry::HKEY_CURRENT_USER\Software\Classes\GlassPhotos.Image\shell\open\command"
+          $openCommand = $openCommandKey.GetValue("")
+          if ($openCommand -notlike "*GlassPhotos.WinUI.exe*%1*") {
+            throw "The installed file-association command is invalid: $openCommand"
+          }
+
+          $jpgProgId = (Get-ItemProperty "Registry::HKEY_CURRENT_USER\Software\GlassPhotos\Capabilities\FileAssociations").'.jpg'
+          if ($jpgProgId -ne "GlassPhotos.Image") {
+            throw "The .jpg association was not registered."
+          }
+
+          $process = Start-Process $installedExe -PassThru
+          Start-Sleep -Seconds 5
+          if ($process.HasExited) {
+            throw "Installed app exited during startup with code $($process.ExitCode)."
+          }
+          Stop-Process -Id $process.Id -Force
+
       - name: Upload portable ZIP
         uses: actions/upload-artifact@v4
         with:
           name: Glass-Photos-Windows-x64
           path: dist/Glass-Photos-Windows-x64.zip
+          if-no-files-found: error
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Glass-Photos-Windows-x64-Installer
+          path: dist/Glass-Photos-Windows-x64-Setup.exe
           if-no-files-found: error

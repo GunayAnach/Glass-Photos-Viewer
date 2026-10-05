@@ -19,7 +19,18 @@ This directory contains the native Windows 10/11 port of [Glass Photos](https://
 - Native Windows Share panel
 - Confirmed deletion to the Windows Recycle Bin
 - Fullscreen and fit-to-window controls
-- Self-contained, unpackaged portable ZIP with no installer
+- Current-user installer with Open with and Windows Default Apps registration
+- Self-contained portable ZIP for no-install use
+
+## Installer
+
+The Inno Setup installer installs Glass Photos under the current user's local applications folder, creates Start-menu integration, and registers every supported image extension. Windows will then list Glass Photos in **Open with** and **Default apps** without silently overriding the user's existing defaults.
+
+```powershell
+./windows/build-installer.ps1 -Architecture x64
+```
+
+Output: `dist/Glass-Photos-Windows-x64-Setup.exe`. Inno Setup 6 is required to build it.
 
 ## Portable distribution
 
