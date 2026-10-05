@@ -17,11 +17,15 @@ All notable changes to **Glass Photos** are recorded here. macOS and Windows now
 - Portable self-contained Windows ZIP distribution for no-install use.
 - Windows Share panel and Recycle Bin integration.
 - Repository link in the macOS Help menu and project documentation.
+- Remembered window size and position on macOS and Windows, including safe restoration after monitor-layout changes.
 
 ### Changed
 - macOS and Windows application versions are aligned at `1.2.0`.
 - The project and repository documentation now describe both supported platforms.
 - The Windows interface now follows the macOS visual hierarchy and interaction model.
+- The Windows information panel now matches the macOS file, EXIF, TIFF, and GPS fields when metadata is available.
+- Shortcut tooltips and controls are aligned across platforms: rename with `Enter`/`Return` or `F2`, info with `I`, fullscreen with `F` or `F11`, and rotation with `↑`/`↓`.
+- Windows installer upgrades now close the running viewer when necessary and automatically overwrite all existing private application files without prompting.
 
 ### Fixed
 - Renaming a file to its existing name on Windows is now treated as a successful no-op instead of reporting that the file already exists.

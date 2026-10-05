@@ -78,12 +78,83 @@ jobs:
             throw "The .jpg association was not registered."
           }
 
+          Add-Type @"
+          using System;
+          using System.Runtime.InteropServices;
+          public static class WindowPlacementSmoke {
+              [StructLayout(LayoutKind.Sequential)]
+              public struct RECT { public int Left, Top, Right, Bottom; }
+              [DllImport("user32.dll", SetLastError = true)]
+              public static extern bool MoveWindow(IntPtr hWnd, int x, int y, int width, int height, bool repaint);
+              [DllImport("user32.dll")]
+              public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
+          }
+          "@
+
           $process = Start-Process $installedExe -PassThru
           Start-Sleep -Seconds 5
           if ($process.HasExited) {
             throw "Installed app exited during startup with code $($process.ExitCode)."
           }
+          $process.Refresh()
+          if ($process.MainWindowHandle -eq [IntPtr]::Zero) {
+            throw "Installed app did not create a main window."
+          }
+          if (-not [WindowPlacementSmoke]::MoveWindow($process.MainWindowHandle, 120, 90, 640, 480, $true)) {
+            throw "Could not move and resize the installed app window."
+          }
+          Start-Sleep -Seconds 2
+          $process.CloseMainWindow() | Out-Null
+          if (-not $process.WaitForExit(10000)) {
+            Stop-Process -Id $process.Id -Force
+            throw "Installed app did not close cleanly after the placement change."
+          }
+
+          $process = Start-Process $installedExe -PassThru
+          Start-Sleep -Seconds 5
+          if ($process.HasExited) {
+            throw "Installed app exited while restoring its window placement."
+          }
+          $process.Refresh()
+          $restored = New-Object WindowPlacementSmoke+RECT
+          if (-not [WindowPlacementSmoke]::GetWindowRect($process.MainWindowHandle, [ref]$restored)) {
+            throw "Could not read the restored app window placement."
+          }
+          $restoredWidth = $restored.Right - $restored.Left
+          $restoredHeight = $restored.Bottom - $restored.Top
+          if ([Math]::Abs($restored.Left - 120) -gt 16 -or
+              [Math]::Abs($restored.Top - 90) -gt 16 -or
+              [Math]::Abs($restoredWidth - 640) -gt 16 -or
+              [Math]::Abs($restoredHeight - 480) -gt 16) {
+            throw "Window placement was not restored: $($restored.Left),$($restored.Top) ${restoredWidth}x${restoredHeight}."
+          }
           Stop-Process -Id $process.Id -Force
+
+          # Verify an upgrade closes the running viewer and replaces even a read-only stale file.
+          $sourceAsset = Resolve-Path "dist/Glass-Photos-Windows-x64/Assets/GlassPhotos.png"
+          $installedAsset = Join-Path $env:LOCALAPPDATA "Programs/Glass Photos/Assets/GlassPhotos.png"
+          $process = Start-Process $installedExe -PassThru
+          Start-Sleep -Seconds 5
+          if ($process.HasExited) {
+            throw "Installed app exited before the upgrade smoke test."
+          }
+          [System.IO.File]::WriteAllText($installedAsset, "stale installer-upgrade test file")
+          (Get-Item $installedAsset).IsReadOnly = $true
+
+          $upgrade = Start-Process $installer -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/NORESTARTAPPLICATIONS", "/SP-" -Wait -PassThru
+          if ($upgrade.ExitCode -ne 0) {
+            throw "Upgrade installer exited with code $($upgrade.ExitCode)."
+          }
+          $process.Refresh()
+          if (-not $process.HasExited) {
+            Stop-Process -Id $process.Id -Force
+            throw "Upgrade installer did not close the running viewer."
+          }
+          $sourceHash = (Get-FileHash $sourceAsset -Algorithm SHA256).Hash
+          $installedHash = (Get-FileHash $installedAsset -Algorithm SHA256).Hash
+          if ($installedHash -ne $sourceHash) {
+            throw "Upgrade installer did not overwrite the read-only stale application file."
+          }
 
       - name: Upload portable ZIP
         uses: actions/upload-artifact@v4

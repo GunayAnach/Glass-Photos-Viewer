@@ -29,6 +29,7 @@ struct PhotoViewerApp: App {
                         }
                     }
                 }
+                .background(WindowFrameAutosaver())
                 .frame(minWidth: 800, minHeight: 600)
         }
         .windowStyle(.titleBar)
@@ -55,6 +56,95 @@ struct PhotoViewerApp: App {
             }
         }
         .handlesExternalEvents(matching: Set(arrayLiteral: "file"))
+    }
+}
+
+private struct WindowFrameAutosaver: NSViewRepresentable {
+    final class Coordinator {
+        weak var configuredWindow: NSWindow?
+
+        func configure(_ window: NSWindow?) {
+            guard let window, configuredWindow !== window else { return }
+            configuredWindow = window
+            WindowPersistence.configure(window)
+        }
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async {
+            context.coordinator.configure(view.window)
+        }
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        DispatchQueue.main.async {
+            context.coordinator.configure(view.window)
+        }
+    }
+}
+
+private struct WindowFullScreenObserver: NSViewRepresentable {
+    @Binding var isFullScreen: Bool
+
+    final class Coordinator {
+        var binding: Binding<Bool>
+        weak var observedWindow: NSWindow?
+        private var observers: [NSObjectProtocol] = []
+
+        init(binding: Binding<Bool>) {
+            self.binding = binding
+        }
+
+        func configure(_ window: NSWindow?) {
+            guard let window, observedWindow !== window else { return }
+            stopObserving()
+            observedWindow = window
+            binding.wrappedValue = window.styleMask.contains(.fullScreen)
+
+            let center = NotificationCenter.default
+            observers = [
+                center.addObserver(
+                    forName: NSWindow.didEnterFullScreenNotification,
+                    object: window,
+                    queue: .main
+                ) { [weak self] _ in self?.binding.wrappedValue = true },
+                center.addObserver(
+                    forName: NSWindow.didExitFullScreenNotification,
+                    object: window,
+                    queue: .main
+                ) { [weak self] _ in self?.binding.wrappedValue = false }
+            ]
+        }
+
+        private func stopObserving() {
+            observers.forEach(NotificationCenter.default.removeObserver)
+            observers.removeAll()
+        }
+
+        deinit {
+            stopObserving()
+        }
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(binding: $isFullScreen) }
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async {
+            context.coordinator.configure(view.window)
+        }
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        context.coordinator.binding = $isFullScreen
+        DispatchQueue.main.async {
+            context.coordinator.configure(view.window)
+        }
     }
 }
 
@@ -232,6 +322,7 @@ final class ViewerModel: ObservableObject {
     }
     
     func toggleInfoSidebar() {
+        guard !files.isEmpty else { return }
         showInfoSidebar.toggle()
         if showInfoSidebar {
             // Load EXIF data when opening the sidebar
@@ -370,11 +461,8 @@ final class ViewerModel: ObservableObject {
         alert.runModal()
     }
 
-    func toggleFullScreen() { 
+    func toggleFullScreen() {
         NSApp.keyWindow?.toggleFullScreen(nil)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            NotificationCenter.default.post(name: .fullScreenChanged, object: nil)
-        }
     }
     
     // EXIF Data handling
@@ -602,7 +690,10 @@ final class ViewerModel: ObservableObject {
         guard keyMonitor == nil else { return }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] e in
             guard let self else { return e }
+            let disallowedModifiers: NSEvent.ModifierFlags = [.command, .control, .option]
+            let hasDisallowedModifiers = !e.modifierFlags.intersection(disallowedModifiers).isEmpty
             if self.isCropping {
+                guard !hasDisallowedModifiers else { return e }
                 switch e.keyCode {
                 case 36, 76:
                     self.commitCrop()
@@ -616,6 +707,8 @@ final class ViewerModel: ObservableObject {
             }
             switch KeyboardCommand.resolve(
                 keyCode: e.keyCode,
+                charactersIgnoringModifiers: e.charactersIgnoringModifiers,
+                hasDisallowedModifiers: hasDisallowedModifiers,
                 isRenaming: self.isRenaming,
                 isDeleteConfirmationVisible: self.isDeleteConfirmationVisible
             ) {
@@ -627,6 +720,8 @@ final class ViewerModel: ObservableObject {
             case .rotateCounterClockwise: self.rotateCounterClockwise(); return nil
             case .toggleFit: self.toggleFit(); return nil
             case .beginRename: self.beginRenaming(); return nil
+            case .toggleInfo: self.toggleInfoSidebar(); return nil
+            case .toggleFullScreen: self.toggleFullScreen(); return nil
             case .delete: self.confirmDeleteCurrentFile(); return nil
             case .escape:
                 if NSApp.keyWindow?.styleMask.contains(.fullScreen) == true {
@@ -635,10 +730,6 @@ final class ViewerModel: ObservableObject {
                 }
                 return e
             case .unhandled:
-                if e.charactersIgnoringModifiers?.lowercased() == "f" {
-                    self.toggleFullScreen()
-                    return nil
-                }
                 return e
             }
         }
@@ -975,9 +1066,7 @@ struct Viewer: View {
                 .transition(.move(edge: .trailing))
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .fullScreenChanged)) { _ in
-            isFullScreen = NSApp.keyWindow?.styleMask.contains(.fullScreen) == true
-        }
+        .background(WindowFullScreenObserver(isFullScreen: $isFullScreen))
         .onChange(of: vm.index) { _ in
             // Reset zoom when changing images
             withAnimation(.easeOut(duration: 0.2)) {
@@ -1191,7 +1280,7 @@ struct TopHeader: View {
                         .foregroundStyle(.white)
                         .contentShape(Rectangle())
                         .onTapGesture(perform: onRenameStart)
-                        .help("Click or press Return to rename")
+                        .help("Rename (Enter / F2)")
                 }
                 
                 if totalCount > 1 {
@@ -1214,7 +1303,7 @@ struct TopHeader: View {
                     isRenaming ? onRenameCommit() : onRenameStart()
                 }
                 .buttonStyle(.bordered)
-                .help(isRenaming ? "Finish renaming" : "Rename photo (Return)")
+                .help(isRenaming ? "Finish Rename (Enter)" : "Rename (Enter / F2)")
                 .disabled(isCropping)
 
                 Button(action: isCropping ? onCropCommit : onCropStart) {
@@ -1233,7 +1322,7 @@ struct TopHeader: View {
                         .font(.title2)
                 }
                 .buttonStyle(.plain)
-                .help("Rotate counter-clockwise (Down Arrow)")
+                .help("Rotate Counter-Clockwise (↑)")
                 .disabled(isCropping)
 
                 Button(action: onRotateClockwise) {
@@ -1241,7 +1330,7 @@ struct TopHeader: View {
                         .font(.title2)
                 }
                 .buttonStyle(.plain)
-                .help("Rotate clockwise (Up Arrow)")
+                .help("Rotate Clockwise (↓)")
                 .disabled(isCropping)
 
                 // Info button
@@ -1254,7 +1343,7 @@ struct TopHeader: View {
                         .cornerRadius(8)
                 }
                 .buttonStyle(.plain)
-                .help("Show Image Info")
+                .help("Info (I)")
                 .disabled(isCropping)
                 
                 // Share button
@@ -1280,7 +1369,7 @@ struct TopHeader: View {
                         .cornerRadius(8)
                 }
                 .buttonStyle(.plain)
-                .help("Enter Full Screen")
+                .help("Full Screen (F / F11)")
                 .disabled(isCropping)
 
                 Button(action: onDelete) {
@@ -1361,8 +1450,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Ensure the main window is visible
         DispatchQueue.main.async {
             if let window = NSApplication.shared.windows.first {
-                // Set window size
-                window.setFrame(NSRect(x: window.frame.origin.x, y: window.frame.origin.y, width: 1000, height: 700), display: true)
                 window.makeKeyAndOrderFront(nil)
                 NSApplication.shared.activate(ignoringOtherApps: true)
                 print("Window made key and ordered front")
@@ -1387,7 +1474,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
 extension Notification.Name {
     static let filesOpened = Notification.Name("filesOpened")
-    static let fullScreenChanged = Notification.Name("fullScreenChanged")
 }
 
 // ---- Previews (inject env object!) ----

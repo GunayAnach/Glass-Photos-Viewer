@@ -9,6 +9,7 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using System.Runtime.InteropServices;
 using Windows.ApplicationModel.DataTransfer;
+using Windows.Graphics;
 using Windows.Graphics.Imaging;
 using Windows.Storage;
 using Windows.Storage.Pickers;
@@ -39,6 +40,11 @@ public sealed partial class MainWindow : Window
     private readonly nint _windowHandle;
     private readonly IDataTransferManagerInterop _shareInterop;
     private readonly DataTransferManager _shareManager;
+    private readonly string _windowPlacementPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "Glass Photos",
+        "window-placement.json");
+    private WindowPlacement? _lastWindowPlacement;
     private PhotoCollection? _photos;
     private long _loadGeneration;
     private bool _isRenaming;
@@ -63,7 +69,10 @@ public sealed partial class MainWindow : Window
         {
             _appWindow.SetIcon(iconPath);
         }
+        RestoreWindowPlacement();
+        _lastWindowPlacement = CaptureWindowPlacement();
         _appWindow.Changed += AppWindow_Changed;
+        _appWindow.Closing += AppWindow_Closing;
         _shareInterop = DataTransferManager.As<IDataTransferManagerInterop>();
         var shareManagerIid = DataTransferManagerIid;
         var shareManagerPointer = _shareInterop.GetForWindow(_windowHandle, ref shareManagerIid);
@@ -86,6 +95,52 @@ public sealed partial class MainWindow : Window
         if (args.DidSizeChange)
         {
             DispatcherQueue.TryEnqueue(UpdateWindowTitle);
+        }
+        if (!_isFullScreen && IsWindowRestored() && (args.DidSizeChange || args.DidPositionChange))
+        {
+            _lastWindowPlacement = CaptureWindowPlacement();
+        }
+    }
+
+    private bool IsWindowRestored() =>
+        _appWindow.Presenter is OverlappedPresenter presenter &&
+        presenter.State == OverlappedPresenterState.Restored;
+
+    private WindowPlacement CaptureWindowPlacement() => new(
+        _appWindow.Position.X,
+        _appWindow.Position.Y,
+        _appWindow.Size.Width,
+        _appWindow.Size.Height);
+
+    private void RestoreWindowPlacement()
+    {
+        var placement = WindowPlacementStore.Load(_windowPlacementPath);
+        if (placement is null) return;
+
+        var display = DisplayArea.GetFromPoint(
+            new PointInt32(placement.X, placement.Y),
+            DisplayAreaFallback.Nearest);
+        if (display is null) return;
+
+        var workArea = display.WorkArea;
+        var width = Math.Min(placement.Width, workArea.Width);
+        var height = Math.Min(placement.Height, workArea.Height);
+        var x = Math.Clamp(placement.X, workArea.X, workArea.X + workArea.Width - width);
+        var y = Math.Clamp(placement.Y, workArea.Y, workArea.Y + workArea.Height - height);
+        _appWindow.MoveAndResize(new RectInt32(x, y, width, height));
+    }
+
+    private void AppWindow_Closing(AppWindow sender, AppWindowClosingEventArgs args)
+    {
+        try
+        {
+            WindowPlacementStore.Save(
+                _windowPlacementPath,
+                _lastWindowPlacement ?? CaptureWindowPlacement());
+        }
+        catch
+        {
+            // Window shutdown must continue even if local settings cannot be written.
         }
     }
 
@@ -684,8 +739,11 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void Info_Click(object sender, RoutedEventArgs e)
+    private void Info_Click(object sender, RoutedEventArgs e) => ToggleInfoSidebar();
+
+    private void ToggleInfoSidebar()
     {
+        if (_photos is null) return;
         InfoSidebar.Visibility = InfoSidebar.Visibility == Visibility.Visible
             ? Visibility.Collapsed
             : Visibility.Visible;
@@ -712,10 +770,59 @@ public sealed partial class MainWindow : Window
                 rows.Add(("Date Taken", imageProperties.DateTaken.ToString("g")));
             }
 
-            rows.Add(("File Size", FormatFileSize(info.Length)));
+            rows.Add(("File Size", MetadataFormatter.FormatFileSize(info.Length)));
             if (imageProperties.Width > 0 && imageProperties.Height > 0)
             {
                 rows.Add(("Dimensions", $"{imageProperties.Width} × {imageProperties.Height}"));
+            }
+
+            var metadataKeys = new[]
+            {
+                "System.Image.ColorSpace",
+                "System.Photo.ExposureTime",
+                "System.Photo.FNumber",
+                "System.Photo.ISOSpeed",
+                "System.Photo.FocalLength",
+                "System.Photo.LensModel"
+            };
+            var metadata = await file.Properties.RetrievePropertiesAsync(metadataKeys);
+
+            double? Number(string key)
+            {
+                if (!metadata.TryGetValue(key, out var value) || value is null) return null;
+                return MetadataFormatter.TryReadDouble(value, out var number) ? number : null;
+            }
+
+            string? Text(string key)
+            {
+                return metadata.TryGetValue(key, out var value)
+                    ? MetadataFormatter.FormatPropertyValue(value)
+                    : null;
+            }
+
+            if (metadata.TryGetValue("System.Image.ColorSpace", out var colorSpace) && colorSpace is not null)
+            {
+                rows.Add(("Color Space", MetadataFormatter.FormatColorSpace(colorSpace)));
+            }
+            if (Number("System.Photo.ExposureTime") is double exposureTime && exposureTime > 0)
+            {
+                rows.Add(("Exposure Time", MetadataFormatter.FormatExposureTime(exposureTime)));
+            }
+            if (Number("System.Photo.FNumber") is double fNumber && fNumber > 0)
+            {
+                rows.Add(("F-Number", $"f/{fNumber:0.0}"));
+            }
+            if (Number("System.Photo.ISOSpeed") is double iso && iso > 0)
+            {
+                rows.Add(("ISO", $"{iso:0}"));
+            }
+            if (Number("System.Photo.FocalLength") is double focalLength && focalLength > 0)
+            {
+                rows.Add(("Focal Length", $"{focalLength:0}mm"));
+            }
+            if (Text("System.Photo.LensModel") is { } lensModel)
+            {
+                rows.Add(("Lens", lensModel));
             }
             if (!string.IsNullOrWhiteSpace(imageProperties.CameraManufacturer))
             {
@@ -730,10 +837,21 @@ public sealed partial class MainWindow : Window
             {
                 rows.Add(("GPS Coordinates", $"{latitude}, {longitude}"));
             }
+            if (!string.IsNullOrWhiteSpace(imageProperties.CameraManufacturer))
+            {
+                rows.Add(("Make", imageProperties.CameraManufacturer));
+            }
+            if (!string.IsNullOrWhiteSpace(imageProperties.CameraModel))
+            {
+                rows.Add(("Model", imageProperties.CameraModel));
+            }
         }
         catch
         {
-            rows.Add(("File Size", FormatFileSize(info.Length)));
+            if (!rows.Any(row => row.Title == "File Size"))
+            {
+                rows.Add(("File Size", MetadataFormatter.FormatFileSize(info.Length)));
+            }
         }
 
         rows.Add(("Modified", info.LastWriteTime.ToString("g")));
@@ -761,19 +879,6 @@ public sealed partial class MainWindow : Window
             Style = (Style)RootGrid.Resources["InfoValue"]
         });
         InfoRows.Children.Add(panel);
-    }
-
-    private static string FormatFileSize(long bytes)
-    {
-        string[] units = ["B", "KB", "MB", "GB"];
-        var value = (double)bytes;
-        var unit = 0;
-        while (value >= 1024 && unit < units.Length - 1)
-        {
-            value /= 1024;
-            unit++;
-        }
-        return unit == 0 ? $"{value:0} {units[unit]}" : $"{value:0.#} {units[unit]}";
     }
 
     private void FullScreen_Click(object sender, RoutedEventArgs e) => ToggleFullScreen();
@@ -851,11 +956,25 @@ public sealed partial class MainWindow : Window
         BeginRename();
     }
 
+    private void RenameOnly_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (KeyboardCommandIsBlocked || _photos is null) return;
+        args.Handled = true;
+        BeginRename();
+    }
+
     private async void Delete_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
         if (KeyboardCommandIsBlocked || _photos is null) return;
         args.Handled = true;
         await DeleteCurrentAsync();
+    }
+
+    private void Info_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (KeyboardCommandIsBlocked || _photos is null) return;
+        args.Handled = true;
+        ToggleInfoSidebar();
     }
 
     private void FullScreen_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)

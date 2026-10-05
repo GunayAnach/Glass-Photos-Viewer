@@ -52,9 +52,12 @@
             <KeyboardAccelerator Key="Down" Invoked="RotateRight_Invoked" />
             <KeyboardAccelerator Key="Space" Invoked="ToggleFit_Invoked" />
             <KeyboardAccelerator Key="Enter" Invoked="Rename_Invoked" />
+            <KeyboardAccelerator Key="F2" Invoked="RenameOnly_Invoked" />
+            <KeyboardAccelerator Key="I" Invoked="Info_Invoked" />
             <KeyboardAccelerator Key="Delete" Invoked="Delete_Invoked" />
             <KeyboardAccelerator Key="Back" Invoked="Delete_Invoked" />
             <KeyboardAccelerator Key="F" Invoked="FullScreen_Invoked" />
+            <KeyboardAccelerator Key="F11" Invoked="FullScreen_Invoked" />
             <KeyboardAccelerator Key="Escape" Invoked="Escape_Invoked" />
             <KeyboardAccelerator Key="O" Modifiers="Control" Invoked="OpenFolder_Invoked" />
         </Grid.KeyboardAccelerators>
@@ -122,6 +125,7 @@
                                 MinWidth="68"
                                 Height="32"
                                 CornerRadius="6"
+                                ToolTipService.ToolTip="Rename (Enter / F2)"
                                 Click="Rename_Click" />
                         <Button x:Name="CropButton"
                                 Style="{StaticResource HeaderIconButton}"
@@ -135,19 +139,19 @@
                         <Button x:Name="RotateLeftButton"
                                 Style="{StaticResource PlainHeaderButton}"
                                 Click="RotateLeft_Click"
-                                ToolTipService.ToolTip="Rotate counter-clockwise">
+                                ToolTipService.ToolTip="Rotate Counter-Clockwise (↑)">
                             <TextBlock Text="↶" FontSize="25" />
                         </Button>
                         <Button x:Name="RotateRightButton"
                                 Style="{StaticResource PlainHeaderButton}"
                                 Click="RotateRight_Click"
-                                ToolTipService.ToolTip="Rotate clockwise">
+                                ToolTipService.ToolTip="Rotate Clockwise (↓)">
                             <TextBlock Text="↷" FontSize="25" />
                         </Button>
                         <Button x:Name="InfoButton"
                                 Style="{StaticResource HeaderIconButton}"
                                 Click="Info_Click"
-                                ToolTipService.ToolTip="Show Image Info">
+                                ToolTipService.ToolTip="Info (I)">
                             <TextBlock Text="ⓘ" FontSize="22" />
                         </Button>
                         <Button x:Name="ShareButton"
@@ -159,7 +163,7 @@
                         <Button x:Name="FullScreenButton"
                                 Style="{StaticResource HeaderIconButton}"
                                 Click="FullScreen_Click"
-                                ToolTipService.ToolTip="Enter Full Screen">
+                                ToolTipService.ToolTip="Full Screen (F / F11)">
                             <TextBlock Text="⛶" FontSize="22" />
                         </Button>
                         <Button x:Name="DeleteButton"

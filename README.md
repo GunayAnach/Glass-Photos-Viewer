@@ -32,6 +32,7 @@ The two applications use the same dark image canvas, welcome screen, top control
 - Persistent clockwise and counter-clockwise rotation.
 - Interactive cropping with a movable and resizable crop border.
 - Metadata sidebar with filename, path, size, dimensions, dates, camera details, and GPS data when available.
+- Remembered window size and position across launches, with safe on-screen restoration.
 - Native sharing support.
 - Fullscreen viewing and fit-to-window/actual-size modes.
 - Safe deletion to macOS Trash or the Windows Recycle Bin after confirmation.
@@ -45,9 +46,10 @@ The two applications use the same dark image canvas, welcome screen, top control
 | `↑` | Rotate counter-clockwise and save |
 | `↓` | Rotate clockwise and save |
 | `Space` | Toggle fit-to-window and actual size |
-| `Enter` / `Return` | Rename the current photo |
+| `Enter` / `Return` / `F2` | Rename the current photo |
+| `I` | Toggle image information |
 | `Backspace` / `Delete` | Move the current photo to Trash or Recycle Bin |
-| `F` | Toggle fullscreen |
+| `F` / `F11` | Toggle fullscreen |
 | `Esc` | Exit fullscreen or cancel cropping |
 | `Cmd+O` on macOS | Open folder |
 | `Ctrl+O` on Windows | Open folder |

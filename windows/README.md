@@ -15,7 +15,8 @@ This directory contains the native Windows 10/11 port of [Glass Photos](https://
 - Same-name rename treated as a successful no-op
 - Persistent image rotation
 - Interactive movable and resizable crop region with tick/Enter confirmation
-- Dynamic image metadata sidebar
+- Image metadata sidebar matching the macOS fields, including EXIF, TIFF, and GPS details when available
+- Remembered window size and position with safe on-screen restoration
 - Native Windows Share panel
 - Confirmed deletion to the Windows Recycle Bin
 - Fullscreen and fit-to-window controls
@@ -24,7 +25,7 @@ This directory contains the native Windows 10/11 port of [Glass Photos](https://
 
 ## Installer
 
-The Inno Setup installer installs Glass Photos under the current user's local applications folder, creates Start-menu integration, and registers every supported image extension. Windows will then list Glass Photos in **Open with** and **Default apps** without silently overriding the user's existing defaults.
+The Inno Setup installer installs Glass Photos under the current user's local applications folder, creates Start-menu integration, and registers every supported image extension. Re-running a newer installer automatically closes the running viewer when necessary and overwrites the existing application files, including read-only copies, without an overwrite prompt. Windows will then list Glass Photos in **Open with** and **Default apps** without silently overriding the user's existing defaults.
 
 ```powershell
 ./windows/build-installer.ps1 -Architecture x64
@@ -49,9 +50,10 @@ Output: `dist/Glass-Photos-Windows-x64.zip`
 | `←` / `→` | Previous or next photo |
 | `↑` / `↓` | Rotate counter-clockwise or clockwise |
 | `Space` | Toggle fit-to-window |
-| `Enter` | Rename; confirms crop while cropping |
+| `Enter` / `F2` | Rename; `Enter` confirms crop while cropping |
+| `I` | Toggle image information |
 | `Backspace` / `Delete` | Move to Recycle Bin |
-| `F` | Toggle fullscreen |
+| `F` / `F11` | Toggle fullscreen |
 | `Esc` | Exit fullscreen or cancel crop |
 | `Ctrl+O` | Open folder |
 

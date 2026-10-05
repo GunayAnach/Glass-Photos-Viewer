@@ -26,6 +26,16 @@ public sealed class InstallerConfigurationTests
     }
 
     [Fact]
+    public void InstallerAlwaysOverwritesExistingPrivateApplicationFiles()
+    {
+        var script = File.ReadAllText(InstallerScript);
+
+        Assert.Contains("CloseApplications=force", script);
+        Assert.Contains("Flags: ignoreversion overwritereadonly recursesubdirs createallsubdirs", script);
+        Assert.DoesNotContain("confirmoverwrite", script, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void InstallerRegistersQuotedOpenCommandAndUninstallCleanup()
     {
         var script = File.ReadAllText(InstallerScript);
