@@ -63,6 +63,7 @@ public sealed partial class MainWindow : Window
         {
             _appWindow.SetIcon(iconPath);
         }
+        _appWindow.Changed += AppWindow_Changed;
         _shareInterop = DataTransferManager.As<IDataTransferManagerInterop>();
         var shareManagerIid = DataTransferManagerIid;
         var shareManagerPointer = _shareInterop.GetForWindow(_windowHandle, ref shareManagerIid);
@@ -78,6 +79,29 @@ public sealed partial class MainWindow : Window
         {
             await OpenPhotoAsync(_initialPath);
         }
+    }
+
+    private void AppWindow_Changed(AppWindow sender, AppWindowChangedEventArgs args)
+    {
+        if (args.DidSizeChange)
+        {
+            DispatcherQueue.TryEnqueue(UpdateWindowTitle);
+        }
+    }
+
+    private void UpdateWindowTitle()
+    {
+        if (_photos is null)
+        {
+            Title = "Glass Photos";
+            return;
+        }
+
+        const double averageTitleCharacterWidth = 7.0;
+        const int systemCaptionWidth = 190;
+        var availableWidth = Math.Max(140, _appWindow.Size.Width - systemCaptionWidth);
+        var maximumCharacters = Math.Max(20, (int)(availableWidth / averageTitleCharacterWidth));
+        Title = WindowTitleFormatter.Format(_photos.CurrentPath, maximumCharacters);
     }
 
     private async void OpenFolder_Click(object sender, RoutedEventArgs e) => await OpenFolderAsync();
@@ -141,7 +165,7 @@ public sealed partial class MainWindow : Window
         InfoButton.IsEnabled = true;
         ShareButton.IsEnabled = true;
         FullScreenButton.IsEnabled = true;
-        Title = $"{Path.GetFileName(path)} — Glass Photos";
+        UpdateWindowTitle();
         _ = UpdateImageInfoAsync(path, generation);
         _ = PrefetchNeighboursAsync();
     }

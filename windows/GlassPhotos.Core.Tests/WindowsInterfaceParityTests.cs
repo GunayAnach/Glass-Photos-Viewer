@@ -18,6 +18,18 @@ public sealed class WindowsInterfaceParityTests
     }
 
     [Fact]
+    public void WindowTitleUsesResponsivePathFormatting()
+    {
+        var windowCode = File.ReadAllText(Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../GlassPhotos.WinUI/MainWindow.xaml.cs")));
+
+        Assert.Contains("WindowTitleFormatter.Format", windowCode);
+        Assert.Contains("_appWindow.Changed +=", windowCode);
+        Assert.Contains("DidSizeChange", windowCode);
+    }
+
+    [Fact]
     public void WindowsAndMacUseTheSameReleaseVersion()
     {
         var windowsProject = File.ReadAllText(Path.GetFullPath(Path.Combine(
