@@ -1,8 +1,19 @@
-# Glass Photos for Windows
+# Glass Photo Viewer for Windows
 
-This directory contains the native Windows 10/11 port of [Glass Photos](https://github.com/GunayAnach/Glass-Photos-Viewer), built with C#, .NET, and WinUI 3.
+This directory contains the native Windows 10/11 implementation of [Glass Photo Viewer](https://github.com/GunayAnach/Glass-Photos-Viewer), built with C#, .NET, and WinUI 3.
 
 **Current development version: 1.2.0** — aligned with the macOS application and the project [changelog](../CHANGELOG.md).
+
+## Layout
+
+```text
+GlassPhotoViewer.Core/        Platform-neutral navigation, caching, formatting, and placement logic
+GlassPhotoViewer.Core.Tests/  Host-runnable xUnit tests
+GlassPhotoViewer.WinUI/       Native WinUI 3 application
+installer/                    Inno Setup installer definition
+publish-windows.ps1           Portable publish and ZIP script
+build-installer.ps1           Installer build script
+```
 
 ## Implemented features
 
@@ -25,23 +36,25 @@ This directory contains the native Windows 10/11 port of [Glass Photos](https://
 
 ## Installer
 
-The Inno Setup installer installs Glass Photos under the current user's local applications folder, creates Start-menu integration, and registers every supported image extension. Re-running a newer installer automatically closes the running viewer when necessary and overwrites the existing application files, including read-only copies, without an overwrite prompt. Windows will then list Glass Photos in **Open with** and **Default apps** without silently overriding the user's existing defaults.
+The Inno Setup installer installs Glass Photo Viewer under the current user's local applications folder, creates Start-menu integration, and registers every supported image extension. Re-running the installer automatically closes the running viewer when necessary and overwrites existing private application files, including read-only copies, without an overwrite prompt. Windows then lists Glass Photo Viewer in **Open with** and **Default apps** without silently overriding the user's existing defaults.
+
+The rename retains the original installer AppId and file-association ProgID. Existing installations therefore upgrade in place, existing default-app choices remain valid, and stale `GlassPhotos.*` binaries and shortcuts are removed during the upgrade.
 
 ```powershell
 ./windows/build-installer.ps1 -Architecture x64
 ```
 
-Output: `dist/Glass-Photos-Windows-x64-Setup.exe`. Inno Setup 6 is required to build it.
+Output: `dist/Glass-Photo-Viewer-Windows-x64-Setup.exe`. Inno Setup 6 is required to build it.
 
 ## Portable distribution
 
-Users extract the complete ZIP and run `GlassPhotos.WinUI.exe`. WinUI 3 requires the adjacent runtime, DLL, PRI, and resource files, so the application is distributed as one ZIP rather than one isolated executable.
+Users extract the complete ZIP and run `GlassPhotoViewer.exe`. WinUI 3 requires the adjacent runtime, DLL, PRI, and resource files, so the application is distributed as one ZIP rather than one isolated executable.
 
 ```powershell
 ./windows/publish-windows.ps1 -Architecture x64
 ```
 
-Output: `dist/Glass-Photos-Windows-x64.zip`
+Output: `dist/Glass-Photo-Viewer-Windows-x64.zip`
 
 ## Keyboard controls
 
@@ -67,8 +80,8 @@ Requirements:
 - Visual Studio with WinUI application-development support when using the IDE
 
 ```powershell
-dotnet test windows/GlassPhotos.Core.Tests/GlassPhotos.Core.Tests.csproj
-dotnet build windows/GlassPhotos.WinUI/GlassPhotos.WinUI.csproj -p:Platform=x64
+dotnet test windows/GlassPhotoViewer.Core.Tests/GlassPhotoViewer.Core.Tests.csproj
+dotnet build windows/GlassPhotoViewer.WinUI/GlassPhotoViewer.WinUI.csproj -p:Platform=x64
 ```
 
-The cross-platform core tests also run on macOS and Linux. The WinUI application must be compiled and exercised on Windows; GitHub Actions provides the Windows build, publish, resource-validation, and startup-smoke-test gate.
+The cross-platform core tests also run on macOS and Linux. The WinUI application must be compiled and exercised on Windows; GitHub Actions provides the Windows build, publish, installer-upgrade, resource-validation, and startup-smoke-test gate after changes are pushed.

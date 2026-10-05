@@ -6,11 +6,11 @@ param(
 
 $ErrorActionPreference = "Stop"
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
-$publishOutput = Join-Path $repositoryRoot "dist/Glass-Photos-Windows-$Architecture"
-$application = Join-Path $publishOutput "GlassPhotos.WinUI.exe"
-$installerScript = Join-Path $PSScriptRoot "installer/GlassPhotos.iss"
-$installerOutput = Join-Path $repositoryRoot "dist/Glass-Photos-Windows-$Architecture-Setup.exe"
-$projectFile = Join-Path $PSScriptRoot "GlassPhotos.WinUI/GlassPhotos.WinUI.csproj"
+$publishOutput = Join-Path $repositoryRoot "dist/Glass-Photo-Viewer-Windows-$Architecture"
+$application = Join-Path $publishOutput "GlassPhotoViewer.exe"
+$installerScript = Join-Path $PSScriptRoot "installer/GlassPhotoViewer.iss"
+$installerOutput = Join-Path $repositoryRoot "dist/Glass-Photo-Viewer-Windows-$Architecture-Setup.exe"
+$projectFile = Join-Path $PSScriptRoot "GlassPhotoViewer.WinUI/GlassPhotoViewer.WinUI.csproj"
 
 if (-not (Test-Path $application)) {
     & (Join-Path $PSScriptRoot "publish-windows.ps1") `
@@ -52,4 +52,4 @@ if ($LASTEXITCODE -ne 0 -or -not (Test-Path $installerOutput)) {
 }
 
 Write-Host "Windows installer created: $installerOutput"
-Write-Host "The installer registers Glass Photos in Open with and Windows Default Apps."
+Write-Host "The installer registers Glass Photo Viewer in Open with and Windows Default Apps."

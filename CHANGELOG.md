@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to **Glass Photos** are recorded here. macOS and Windows now share one release version.
+All notable changes to **Glass Photo Viewer** are recorded here. macOS and Windows share one release version.
 
 ## [1.2.0] - In development
 
@@ -17,9 +17,15 @@ All notable changes to **Glass Photos** are recorded here. macOS and Windows now
 - Portable self-contained Windows ZIP distribution for no-install use.
 - Windows Share panel and Recycle Bin integration.
 - Repository link in the macOS Help menu and project documentation.
+- Universal Apple silicon/Intel macOS release packaging with macOS CI verification.
+- Automated Windows legacy-installer upgrade coverage, including process closure, stale-file cleanup, stable file associations, and window-placement migration.
 - Remembered window size and position on macOS and Windows, including safe restoration after monitor-layout changes.
 
 ### Changed
+- Renamed the product and native projects from Glass Photos to Glass Photo Viewer.
+- Reorganized platform code under `OSx/` and `windows/`, with shared documentation and configuration at the repository root.
+- Renamed the macOS app bundle to `Glass Photo Viewer.app`, the Windows executable to `GlassPhotoViewer.exe`, and both Windows distribution artifacts to `Glass-Photo-Viewer-*`.
+- Kept the existing macOS bundle identifier, Windows installer AppId, file-association ProgID, and legacy window-position migration paths so upgrades preserve user settings and default-app choices.
 - macOS and Windows application versions are aligned at `1.2.0`.
 - The project and repository documentation now describe both supported platforms.
 - The Windows interface now follows the macOS visual hierarchy and interaction model.

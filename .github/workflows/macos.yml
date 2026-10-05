@@ -1,0 +1,34 @@
+name: Glass Photo Viewer macOS build
+
+on:
+  push:
+    branches:
+      - main
+      - feat/windows-winui3-port
+    paths:
+      - "OSx/**"
+      - ".github/workflows/macos.yml"
+  pull_request:
+    paths:
+      - "OSx/**"
+      - ".github/workflows/macos.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Test, build, and verify universal macOS app
+        run: ./OSx/build-release.sh
+
+      - name: Upload macOS ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: Glass-Photo-Viewer-macOS
+          path: dist/Glass-Photo-Viewer-v*-macOS.zip
+          if-no-files-found: error

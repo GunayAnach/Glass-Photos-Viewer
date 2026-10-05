@@ -7,13 +7,13 @@ param(
 $ErrorActionPreference = "Stop"
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $runtime = "win-$Architecture"
-$output = Join-Path $repositoryRoot "dist/Glass-Photos-Windows-$Architecture"
+$output = Join-Path $repositoryRoot "dist/Glass-Photo-Viewer-Windows-$Architecture"
 $archive = "$output.zip"
 
 Remove-Item $output -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item $archive -Force -ErrorAction SilentlyContinue
 
-dotnet publish (Join-Path $PSScriptRoot "GlassPhotos.WinUI/GlassPhotos.WinUI.csproj") `
+dotnet publish (Join-Path $PSScriptRoot "GlassPhotoViewer.WinUI/GlassPhotoViewer.WinUI.csproj") `
     --configuration $Configuration `
     --runtime $runtime `
     --self-contained true `
@@ -21,7 +21,8 @@ dotnet publish (Join-Path $PSScriptRoot "GlassPhotos.WinUI/GlassPhotos.WinUI.csp
     --output $output
 
 $applicationPri = @(
-    (Join-Path $output "GlassPhotos.WinUI.pri"),
+    (Join-Path $output "GlassPhotoViewer.pri"),
+    (Join-Path $output "GlassPhotoViewer.WinUI.pri"),
     (Join-Path $output "resources.pri")
 ) | Where-Object { Test-Path $_ }
 
@@ -31,4 +32,4 @@ if (-not $applicationPri) {
 
 Compress-Archive -Path (Join-Path $output "*") -DestinationPath $archive -CompressionLevel Optimal
 Write-Host "Portable build created: $archive"
-Write-Host "Extract the ZIP and run GlassPhotos.WinUI.exe; no installer is required."
+Write-Host "Extract the ZIP and run GlassPhotoViewer.exe; no installer is required."

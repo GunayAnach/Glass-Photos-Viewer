@@ -1,4 +1,4 @@
-name: Windows WinUI build
+name: Glass Photo Viewer Windows build
 
 on:
   push:
@@ -7,10 +7,12 @@ on:
       - feat/windows-winui3-port
     paths:
       - "windows/**"
+      - "OSx/**"
       - ".github/workflows/windows.yml"
   pull_request:
     paths:
       - "windows/**"
+      - "OSx/**"
       - ".github/workflows/windows.yml"
 
 jobs:
@@ -26,10 +28,10 @@ jobs:
           dotnet-version: "10.0.x"
 
       - name: Test cross-platform core
-        run: dotnet test windows/GlassPhotos.Core.Tests/GlassPhotos.Core.Tests.csproj --configuration Release
+        run: dotnet test windows/GlassPhotoViewer.Core.Tests/GlassPhotoViewer.Core.Tests.csproj --configuration Release
 
       - name: Build WinUI app
-        run: dotnet build windows/GlassPhotos.WinUI/GlassPhotos.WinUI.csproj --configuration Release -p:Platform=x64
+        run: dotnet build windows/GlassPhotoViewer.WinUI/GlassPhotoViewer.WinUI.csproj --configuration Release -p:Platform=x64
 
       - name: Publish portable Windows build
         shell: pwsh
@@ -42,10 +44,14 @@ jobs:
         shell: pwsh
         run: ./windows/build-installer.ps1 -Architecture x64
 
+      - name: Test upgrade from legacy Glass Photos installer
+        shell: pwsh
+        run: ./windows/test-legacy-upgrade.ps1 -Architecture x64
+
       - name: Smoke test portable app startup
         shell: pwsh
         run: |
-          $exe = Resolve-Path "dist/Glass-Photos-Windows-x64/GlassPhotos.WinUI.exe"
+          $exe = Resolve-Path "dist/Glass-Photo-Viewer-Windows-x64/GlassPhotoViewer.exe"
           $process = Start-Process $exe -PassThru
           Start-Sleep -Seconds 5
           if ($process.HasExited) {
@@ -56,20 +62,20 @@ jobs:
       - name: Smoke test installer and file associations
         shell: pwsh
         run: |
-          $installer = Resolve-Path "dist/Glass-Photos-Windows-x64-Setup.exe"
+          $installer = Resolve-Path "dist/Glass-Photo-Viewer-Windows-x64-Setup.exe"
           $install = Start-Process $installer -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-" -Wait -PassThru
           if ($install.ExitCode -ne 0) {
             throw "Installer exited with code $($install.ExitCode)."
           }
 
-          $installedExe = Join-Path $env:LOCALAPPDATA "Programs/Glass Photos/GlassPhotos.WinUI.exe"
+          $installedExe = Join-Path $env:LOCALAPPDATA "Programs/Glass Photo Viewer/GlassPhotoViewer.exe"
           if (-not (Test-Path $installedExe)) {
             throw "Installer did not create the expected application executable."
           }
 
           $openCommandKey = Get-Item "Registry::HKEY_CURRENT_USER\Software\Classes\GlassPhotos.Image\shell\open\command"
           $openCommand = $openCommandKey.GetValue("")
-          if ($openCommand -notlike "*GlassPhotos.WinUI.exe*%1*") {
+          if ($openCommand -notlike "*GlassPhotoViewer.exe*%1*") {
             throw "The installed file-association command is invalid: $openCommand"
           }
 
@@ -131,8 +137,8 @@ jobs:
           Stop-Process -Id $process.Id -Force
 
           # Verify an upgrade closes the running viewer and replaces even a read-only stale file.
-          $sourceAsset = Resolve-Path "dist/Glass-Photos-Windows-x64/Assets/GlassPhotos.png"
-          $installedAsset = Join-Path $env:LOCALAPPDATA "Programs/Glass Photos/Assets/GlassPhotos.png"
+          $sourceAsset = Resolve-Path "dist/Glass-Photo-Viewer-Windows-x64/Assets/GlassPhotoViewer.png"
+          $installedAsset = Join-Path $env:LOCALAPPDATA "Programs/Glass Photo Viewer/Assets/GlassPhotoViewer.png"
           $process = Start-Process $installedExe -PassThru
           Start-Sleep -Seconds 5
           if ($process.HasExited) {
@@ -159,13 +165,13 @@ jobs:
       - name: Upload portable ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: Glass-Photos-Windows-x64
-          path: dist/Glass-Photos-Windows-x64.zip
+          name: Glass-Photo-Viewer-Windows-x64
+          path: dist/Glass-Photo-Viewer-Windows-x64.zip
           if-no-files-found: error
 
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
         with:
-          name: Glass-Photos-Windows-x64-Installer
-          path: dist/Glass-Photos-Windows-x64-Setup.exe
+          name: Glass-Photo-Viewer-Windows-x64-Installer
+          path: dist/Glass-Photo-Viewer-Windows-x64-Setup.exe
           if-no-files-found: error
