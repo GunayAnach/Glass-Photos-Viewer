@@ -58,6 +58,11 @@ public sealed partial class MainWindow : Window
         _initialPath = initialPath;
         _windowHandle = WindowNative.GetWindowHandle(this);
         _appWindow = AppWindow.GetFromWindowId(Win32Interop.GetWindowIdFromWindow(_windowHandle));
+        var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "GlassPhotos.ico");
+        if (File.Exists(iconPath))
+        {
+            _appWindow.SetIcon(iconPath);
+        }
         _shareInterop = DataTransferManager.As<IDataTransferManagerInterop>();
         var shareManagerIid = DataTransferManagerIid;
         var shareManagerPointer = _shareInterop.GetForWindow(_windowHandle, ref shareManagerIid);

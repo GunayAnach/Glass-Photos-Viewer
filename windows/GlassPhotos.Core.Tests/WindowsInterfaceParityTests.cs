@@ -3,6 +3,21 @@ namespace GlassPhotos.Core.Tests;
 public sealed class WindowsInterfaceParityTests
 {
     [Fact]
+    public void AppIconIsConfiguredForTheExecutableAndRuntimeWindow()
+    {
+        var projectDirectory = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../GlassPhotos.WinUI"));
+        var project = File.ReadAllText(Path.Combine(projectDirectory, "GlassPhotos.WinUI.csproj"));
+        var windowCode = File.ReadAllText(Path.Combine(projectDirectory, "MainWindow.xaml.cs"));
+
+        Assert.Contains("<ApplicationIcon>Assets\\GlassPhotos.ico</ApplicationIcon>", project);
+        Assert.True(File.Exists(Path.Combine(projectDirectory, "Assets", "GlassPhotos.ico")));
+        Assert.Contains("_appWindow.SetIcon", windowCode);
+        Assert.Contains("AppContext.BaseDirectory", windowCode);
+    }
+
+    [Fact]
     public void WindowsAndMacUseTheSameReleaseVersion()
     {
         var windowsProject = File.ReadAllText(Path.GetFullPath(Path.Combine(
