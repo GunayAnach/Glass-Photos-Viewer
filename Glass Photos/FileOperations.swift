@@ -9,6 +9,7 @@ enum FileOperationsError: LocalizedError {
     case unreadableImage
     case unsupportedImageFormat
     case imageWriteFailed
+    case invalidCrop
 
     var errorDescription: String? {
         switch self {
@@ -23,7 +24,9 @@ enum FileOperationsError: LocalizedError {
         case .unsupportedImageFormat:
             return "This image format cannot be rotated and saved."
         case .imageWriteFailed:
-            return "The rotated image could not be saved."
+            return "The edited image could not be saved."
+        case .invalidCrop:
+            return "The crop area is too small or outside the image."
         }
     }
 }
@@ -109,6 +112,71 @@ enum FileOperations {
             throw FileOperationsError.imageWriteFailed
         }
 
+        _ = try FileManager.default.replaceItemAt(url, withItemAt: temporaryURL)
+    }
+
+    /// Crops using a normalized rectangle whose origin is the displayed image's top-left.
+    static func crop(_ url: URL, normalizedRect: CGRect) throws {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let sourceType = CGImageSourceGetType(source),
+              let inputImage = CIImage(
+                contentsOf: url,
+                options: [.applyOrientationProperty: true]
+              ) else {
+            throw FileOperationsError.unreadableImage
+        }
+        let writableTypes = CGImageDestinationCopyTypeIdentifiers() as? [String] ?? []
+        guard writableTypes.contains(sourceType as String) else {
+            throw FileOperationsError.unsupportedImageFormat
+        }
+
+        let normalized = normalizedRect.standardized
+        let x = Swift.min(Swift.max(normalized.minX, 0), 1)
+        let y = Swift.min(Swift.max(normalized.minY, 0), 1)
+        let width = min(normalized.width, 1 - x)
+        let height = min(normalized.height, 1 - y)
+        guard width >= 0.01, height >= 0.01 else {
+            throw FileOperationsError.invalidCrop
+        }
+
+        let extent = inputImage.extent
+        let cropRect = CGRect(
+            x: extent.minX + x * extent.width,
+            y: extent.minY + (1 - y - height) * extent.height,
+            width: width * extent.width,
+            height: height * extent.height
+        ).integral.intersection(extent)
+        guard cropRect.width >= 1, cropRect.height >= 1 else {
+            throw FileOperationsError.invalidCrop
+        }
+
+        let croppedImage = inputImage.cropped(to: cropRect)
+        let context = CIContext(options: [.cacheIntermediates: false])
+        guard let outputImage = context.createCGImage(croppedImage, from: cropRect) else {
+            throw FileOperationsError.imageWriteFailed
+        }
+
+        let temporaryURL = url.deletingLastPathComponent().appendingPathComponent(
+            ".glass-photos-\(UUID().uuidString).\(url.pathExtension)"
+        )
+        defer { try? FileManager.default.removeItem(at: temporaryURL) }
+        guard let destination = CGImageDestinationCreateWithURL(
+            temporaryURL as CFURL,
+            sourceType,
+            1,
+            nil
+        ) else {
+            throw FileOperationsError.unsupportedImageFormat
+        }
+
+        var properties = (CGImageSourceCopyPropertiesAtIndex(source, 0, nil)
+            as? [CFString: Any]) ?? [:]
+        properties[kCGImagePropertyOrientation] = 1
+        properties[kCGImageDestinationLossyCompressionQuality] = 1.0
+        CGImageDestinationAddImage(destination, outputImage, properties as CFDictionary)
+        guard CGImageDestinationFinalize(destination) else {
+            throw FileOperationsError.imageWriteFailed
+        }
         _ = try FileManager.default.replaceItemAt(url, withItemAt: temporaryURL)
     }
 

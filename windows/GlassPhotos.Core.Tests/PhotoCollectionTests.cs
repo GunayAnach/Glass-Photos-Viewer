@@ -56,6 +56,20 @@ public sealed class PhotoCollectionTests : IDisposable
     }
 
     [Fact]
+    public void RenameCurrentToItsExistingNameIsASuccessfulNoOp()
+    {
+        var selected = CreateFile("unchanged.jpg");
+        File.WriteAllText(selected, "original contents");
+        var collection = PhotoCollection.Open(selected);
+
+        var result = collection.RenameCurrent("unchanged");
+
+        Assert.Equal(selected, result);
+        Assert.Equal(selected, collection.CurrentPath);
+        Assert.Equal("original contents", File.ReadAllText(selected));
+    }
+
+    [Fact]
     public void RemovingCurrentPhotoSelectsTheNextNeighbour()
     {
         CreateFile("photo1.jpg");

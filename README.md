@@ -1,123 +1,136 @@
-# <img src="Glass Photos/Assets.xcassets/AppIcon.appiconset/icon_128x128.png" alt="Glass Photo Viewer Logo" width="32" height="32" style="vertical-align: middle; margin-right: 8px;"> Glass Photos Viewer
+# <img src="Glass Photos/Assets.xcassets/AppIcon.appiconset/icon_128x128.png" alt="Glass Photos logo" width="32" height="32" style="vertical-align: middle; margin-right: 8px;"> Glass Photos Viewer
 
-A beautiful, modern photo viewer for macOS with a focus on simplicity and performance.
+A fast, native photo viewer for **macOS and Windows** with a consistent interface and workflow across both platforms.
 
-A fast, Windows-style photo viewer for macOS that lets you browse with the arrow keys and rotate, rename, or move photos to the Trash.
+- **Current development version:** `1.2.0`
+- **Repository:** [github.com/GunayAnach/Glass-Photos-Viewer](https://github.com/GunayAnach/Glass-Photos-Viewer)
+- **Downloads:** [GitHub Releases](https://github.com/GunayAnach/Glass-Photos-Viewer/releases)
+- **Version history:** [CHANGELOG.md](CHANGELOG.md)
+
+## Platforms
+
+| Platform | Technology | Distribution |
+|---|---|---|
+| macOS | SwiftUI and AppKit | `Glass Photos.app` in a ZIP |
+| Windows 10/11 x64 | C#, .NET, and WinUI 3 | Portable self-contained ZIP; no installer |
+
+The two applications use the same dark image canvas, welcome screen, top controls, inline rename flow, image counter, metadata sidebar, cropping workflow, and keyboard controls while retaining native platform integration.
 
 ## Screenshots
 
 ![Interface](assets/1.jpg)
 ![Opened photo](assets/4.jpg)
 ![Renaming photos with Enter](assets/5.jpg)
-![Navigate to the next photo with the arrow keys](assets/6.jpg)
+![Navigate with the arrow keys](assets/6.jpg)
 
 ## Features
 
-### 🖼️ **Open with Photos by Default**
-![Interface](assets/2.jpg)
-- **File type associations** - double-click any image file to open it in the app
-- **Open folders** - quickly open folders
-- **Fullscreen mode**: Perfect for photo presentations or immersive viewing
+- Open a folder or an associated image file and browse neighboring photos.
+- Natural filename ordering, so `photo2.jpg` appears before `photo10.jpg`.
+- Asynchronous image loading, bounded caching, and neighboring-photo prefetch.
+- Persistent rename while preserving the file extension.
+- Persistent clockwise and counter-clockwise rotation.
+- Interactive cropping with a movable and resizable crop border.
+- Metadata sidebar with filename, path, size, dimensions, dates, camera details, and GPS data when available.
+- Native sharing support.
+- Fullscreen viewing and fit-to-window/actual-size modes.
+- Safe deletion to macOS Trash or the Windows Recycle Bin after confirmation.
+- Native file-opening support from Finder or Windows command-line/Explorer integration.
 
-### 📚 Associate as the default viewer for a file type
-![Interface](assets/3.jpg)
-- Right-click an image in Finder and choose **Get Info**
-- Under **Open with**, choose **Glass Photos.app**
-- Press **Change All…**
-- Confirm the selection
+## Keyboard controls
 
-### 🎯 **Easy Navigation**
-- **Keyboard shortcuts**:
-  - `←` / `→` - Navigate between photos
-  - `↑` - Rotate a photo 90° counter-clockwise (saves automatically)
-  - `↓` - Rotate a photo 90° clockwise (saves automatically)
-  - `Space` - Toggle fit to window
-  - `F` - Toggle fullscreen
-  - `Esc` - Exit fullscreen
-  - `Cmd+O` - Open folder
-  - `Backspace/Delete` - Move the photo to the Trash after confirmation
-  - `Enter/Return` - Rename photo
+| Key | Action |
+|---|---|
+| `←` / `→` | Previous or next photo |
+| `↑` | Rotate counter-clockwise and save |
+| `↓` | Rotate clockwise and save |
+| `Space` | Toggle fit-to-window and actual size |
+| `Enter` / `Return` | Rename the current photo |
+| `Backspace` / `Delete` | Move the current photo to Trash or Recycle Bin |
+| `F` | Toggle fullscreen |
+| `Esc` | Exit fullscreen or cancel cropping |
+| `Cmd+O` on macOS | Open folder |
+| `Ctrl+O` on Windows | Open folder |
 
-- **Mouse/Trackpad**:
-  - **Double-click** - Zoom In/Zoom Out
-  - **Pinch** - Pinch to Zoom In/Zoom Out
-  - **Drag and Pan** - Move inside the zoomed photo
+Keyboard commands remain inactive while a rename field or confirmation dialog is open.
 
-### 🚀 **Performance**
-- **Smart caching** - Images are cached for smooth navigation
-- **Background loading** - Photos load in the background for better performance
-- **Preloading** - Adjacent images are preloaded for instant navigation
+## Cropping
 
-### 📁 **Supported Formats**
-- **Common formats**: JPG, JPEG, PNG, WebP, HEIC, HEIF, TIFF, GIF, BMP
-- **RAW formats**: DNG, NEF, CR2, ARW, RAF
+1. Open a photo and press the **Crop** button.
+2. Drag inside the crop rectangle to move it.
+3. Drag any corner handle to resize it.
+4. Press the green **tick** or `Enter`/`Return` to crop and overwrite the current image.
+5. Press `Esc` to cancel without changing the file.
 
-## How to Use
+Cropping and rotation rewrite the current image, so retain a backup when editing irreplaceable originals.
 
-### Apple Gatekeeper
+## Supported formats
 
-Glass Photos is ad-hoc signed but not Apple-notarized. On first launch, macOS may show an **unidentified developer** warning.
+- Common formats: JPG, JPEG, PNG, WebP, HEIC, HEIF, TIFF, GIF, BMP
+- RAW formats: DNG, NEF, CR2, ARW, RAF
 
-#### Preferred method
+Viewing support depends on the codecs installed by the operating system. Persistent editing is available only where the platform provides a matching image encoder.
 
-1. Move **Glass Photos.app** to `/Applications`.
-2. Right-click the app and choose **Open**.
-3. Confirm **Open** when macOS asks.
+## Installation
 
-![Open Glass Photos through Gatekeeper](assets/7.jpg)
+### macOS
 
-#### If macOS still reports that the app is damaged
+1. Download the macOS ZIP from [Releases](https://github.com/GunayAnach/Glass-Photos-Viewer/releases).
+2. Extract it and move **Glass Photos.app** to `/Applications`.
+3. Right-click the app and choose **Open** on first launch.
 
-Only after downloading the app from the official [Glass Photos releases](https://github.com/GunayAnach/Glass-Photos-Viewer/releases), remove its quarantine attribute:
+Glass Photos is ad-hoc signed but not Apple-notarized. If macOS still reports that the official release is damaged, remove its quarantine attribute:
 
 ```bash
 xattr -dr com.apple.quarantine "/Applications/Glass Photos.app"
 ```
 
-Then right-click **Glass Photos.app** and choose **Open** again.
+Then right-click the app and choose **Open** again.
 
-### Opening Photos
-1. **Launch the app** - Use the button to open a folder
-2. **Double-click any associated image file** - The app opens that image and loads neighboring photos from its folder
-3. **Use the menu** - File → Open Folder to browse for photos
+To make it the default viewer for a format, select an image in Finder, choose **Get Info**, select **Glass Photos.app** under **Open with**, and press **Change All…**.
 
-### Navigation
-- Use arrow keys to navigate between photos
-- Press Space to toggle between fit-to-window and actual size
-- Press F to enter/exit fullscreen mode
+### Windows
 
-## Installation
+1. Download the Windows x64 portable ZIP from [Releases](https://github.com/GunayAnach/Glass-Photos-Viewer/releases).
+2. Extract the **entire ZIP** to a folder.
+3. Run `GlassPhotos.WinUI.exe`.
 
-### Quick Download
-Download the latest build from the [Glass Photos releases](https://github.com/GunayAnach/Glass-Photos-Viewer/releases/latest).
+The adjacent DLL, runtime, PRI, and resource files are required by WinUI 3 and must remain beside the executable. No installer or MSIX registration is required.
 
-### 🌍 From GitHub Releases
-- Download the latest ZIP from the [releases section](https://github.com/GunayAnach/Glass-Photos-Viewer/releases)
-- Extract it and drag **Glass Photos.app** to the Applications folder
-- The beta builds are unsigned; right-click the app and choose **Open** the first time
+## System requirements
 
-## Bugs or Issues?
-Open a ticket under [Issues](https://github.com/GunayAnach/Glass-Photos-Viewer/issues).
-- Describe what is not working and which macOS version you are using
-- Explain step by step how the problem can be reproduced
-
-
-## Development
-Suggestions or improvements? Feel free to fork the project, implement the change, and create a pull request.
-1. Clone the project
-2. Build the project in Xcode
-
-## System Requirements
+### macOS
 
 - macOS 15.5 or later
-- SwiftUI 4.0+
-- 4GB RAM recommended for large photo collections
+- Apple silicon or Intel Mac supported by the build
 
-## Tips
+### Windows
 
-- **Large folders**: The app handles large photo collections efficiently with background loading
-- **RAW files**: RAW format support for professional photographers
-- **Fullscreen mode**: Perfect for photo presentations or immersive viewing
-- **Keyboard shortcuts**: Learn the shortcuts for the fastest workflow
+- Windows 10 version 2004 or later, or Windows 11
+- x64 processor for the published portable build
 
-Enjoy viewing your photos with Glass Photo Viewer! 📸
+## Development
+
+### macOS
+
+Open `glass photo viewer.xcodeproj` in Xcode, or run the core test suite:
+
+```bash
+swift test
+```
+
+### Windows
+
+Build on Windows with the .NET 10 SDK and Windows SDK 10.0.26100:
+
+```powershell
+dotnet test windows/GlassPhotos.Core.Tests/GlassPhotos.Core.Tests.csproj
+dotnet build windows/GlassPhotos.WinUI/GlassPhotos.WinUI.csproj -p:Platform=x64
+./windows/publish-windows.ps1 -Architecture x64
+```
+
+The published artifact is `dist/Glass-Photos-Windows-x64.zip`.
+
+## Bugs and contributions
+
+Report problems or propose improvements through [GitHub Issues](https://github.com/GunayAnach/Glass-Photos-Viewer/issues). Include the operating system version, image format, and reproduction steps.

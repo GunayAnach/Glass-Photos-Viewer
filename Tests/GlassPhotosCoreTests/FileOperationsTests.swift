@@ -85,6 +85,27 @@ final class FileOperationsTests: XCTestCase {
         XCTAssertEqual(properties[kCGImagePropertyPixelHeight] as? Int, 2)
     }
 
+    func testCropPersistsRequestedNormalizedRegion() throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let url = folder.appendingPathComponent("crop.png")
+        try writePNG(width: 100, height: 80, to: url)
+
+        try FileOperations.crop(
+            url,
+            normalizedRect: CGRect(x: 0.1, y: 0.25, width: 0.5, height: 0.5)
+        )
+
+        let source = try XCTUnwrap(CGImageSourceCreateWithURL(url as CFURL, nil))
+        let properties = try XCTUnwrap(
+            CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+        )
+        XCTAssertEqual(properties[kCGImagePropertyPixelWidth] as? Int, 50)
+        XCTAssertEqual(properties[kCGImagePropertyPixelHeight] as? Int, 40)
+    }
+
     private func writePNG(width: Int, height: Int, to url: URL) throws {
         let colorSpace = try XCTUnwrap(CGColorSpace(name: CGColorSpace.sRGB))
         let context = try XCTUnwrap(CGContext(

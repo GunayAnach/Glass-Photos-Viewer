@@ -5,6 +5,7 @@ using Microsoft.VisualBasic.FileIO;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using System.Runtime.InteropServices;
 using Windows.ApplicationModel.DataTransfer;
@@ -42,6 +43,14 @@ public sealed partial class MainWindow : Window
     private long _loadGeneration;
     private bool _isRenaming;
     private bool _isFullScreen;
+    private bool _isFitToWindow = true;
+    private bool _isDeleteConfirmationVisible;
+    private bool _isCropping;
+    private bool _isSavingCrop;
+    private NormalizedCropRect _cropRect = new(0.1, 0.1, 0.8, 0.8);
+    private NormalizedCropRect _cropDragStart;
+    private Windows.Foundation.Point _cropPointerStart;
+    private string? _cropDragMode;
 
     public MainWindow(string? initialPath)
     {
@@ -66,7 +75,9 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private async void OpenFolder_Click(object sender, RoutedEventArgs e)
+    private async void OpenFolder_Click(object sender, RoutedEventArgs e) => await OpenFolderAsync();
+
+    private async Task OpenFolderAsync()
     {
         var picker = new FolderPicker();
         picker.FileTypeFilter.Add("*");
@@ -118,6 +129,7 @@ public sealed partial class MainWindow : Window
         PositionText.Text = $"({_photos.CurrentIndex + 1}/{_photos.Files.Count})";
         CounterPill.Visibility = _photos.Files.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
         RenameButton.IsEnabled = true;
+        CropButton.IsEnabled = true;
         RotateLeftButton.IsEnabled = true;
         RotateRightButton.IsEnabled = true;
         DeleteButton.IsEnabled = true;
@@ -242,7 +254,18 @@ public sealed partial class MainWindow : Window
             XamlRoot = Content.XamlRoot
         };
 
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+        _isDeleteConfirmationVisible = true;
+        ContentDialogResult result;
+        try
+        {
+            result = await dialog.ShowAsync();
+        }
+        finally
+        {
+            _isDeleteConfirmationVisible = false;
+        }
+
+        if (result != ContentDialogResult.Primary) return;
 
         try
         {
@@ -267,6 +290,254 @@ public sealed partial class MainWindow : Window
             await ShowErrorAsync("Could not recycle photo", exception.Message);
         }
     }
+
+    private async void Crop_Click(object sender, RoutedEventArgs e)
+    {
+        if (_isCropping)
+        {
+            await CommitCropAsync();
+        }
+        else
+        {
+            BeginCrop();
+        }
+    }
+
+    private void BeginCrop()
+    {
+        if (_photos is null || _isSavingCrop) return;
+        CancelRename();
+        _isFitToWindow = true;
+        PhotoImage.Stretch = Stretch.Uniform;
+        InfoSidebar.Visibility = Visibility.Collapsed;
+        _cropRect = new NormalizedCropRect(0.1, 0.1, 0.8, 0.8);
+        _isCropping = true;
+        CropOverlay.Visibility = Visibility.Visible;
+        CropIconText.Text = "✓";
+        CropIconText.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.LimeGreen);
+        ToolTipService.SetToolTip(CropButton, "Apply crop (Enter)");
+        SetEditingControlsEnabled(false);
+        CropButton.IsEnabled = true;
+        UpdateCropOverlay();
+    }
+
+    private void CancelCrop()
+    {
+        if (!_isCropping || _isSavingCrop) return;
+        _isCropping = false;
+        _cropDragMode = null;
+        CropOverlay.Visibility = Visibility.Collapsed;
+        CropIconText.Text = "";
+        CropIconText.ClearValue(TextBlock.ForegroundProperty);
+        ToolTipService.SetToolTip(CropButton, "Crop photo");
+        SetEditingControlsEnabled(_photos is not null);
+    }
+
+    private void SetEditingControlsEnabled(bool enabled)
+    {
+        RenameButton.IsEnabled = enabled;
+        RotateLeftButton.IsEnabled = enabled;
+        RotateRightButton.IsEnabled = enabled;
+        InfoButton.IsEnabled = enabled;
+        ShareButton.IsEnabled = enabled;
+        FullScreenButton.IsEnabled = enabled;
+        DeleteButton.IsEnabled = enabled;
+    }
+
+    private async Task CommitCropAsync()
+    {
+        if (!_isCropping || _isSavingCrop || _photos is null) return;
+        var path = _photos.CurrentPath;
+        StorageFile? temporaryFile = null;
+        _isSavingCrop = true;
+        CropButton.IsEnabled = false;
+
+        try
+        {
+            var sourceFile = await StorageFile.GetFileFromPathAsync(path);
+            var folder = await sourceFile.GetParentAsync();
+            var extension = sourceFile.FileType.ToLowerInvariant();
+            temporaryFile = await folder.CreateFileAsync(
+                $".glassphotos-{Guid.NewGuid():N}{extension}",
+                CreationCollisionOption.FailIfExists);
+
+            using (var sourceStream = await sourceFile.OpenAsync(FileAccessMode.Read))
+            {
+                var decoder = await BitmapDecoder.CreateAsync(sourceStream);
+                var provider = await decoder.GetPixelDataAsync(
+                    BitmapPixelFormat.Bgra8,
+                    BitmapAlphaMode.Premultiplied,
+                    new BitmapTransform(),
+                    ExifOrientationMode.RespectExifOrientation,
+                    ColorManagementMode.ColorManageToSRgb);
+                var sourcePixels = provider.DetachPixelData();
+                var sourceWidth = checked((int)decoder.OrientedPixelWidth);
+                var sourceHeight = checked((int)decoder.OrientedPixelHeight);
+                var crop = _cropRect.ToPixels(sourceWidth, sourceHeight);
+                var croppedPixels = new byte[checked(crop.Width * crop.Height * 4)];
+                var sourceStride = checked(sourceWidth * 4);
+                var targetStride = checked(crop.Width * 4);
+                for (var row = 0; row < crop.Height; row++)
+                {
+                    Buffer.BlockCopy(
+                        sourcePixels,
+                        checked((crop.Y + row) * sourceStride + crop.X * 4),
+                        croppedPixels,
+                        row * targetStride,
+                        targetStride);
+                }
+
+                using var outputStream = await temporaryFile.OpenAsync(FileAccessMode.ReadWrite);
+                var encoder = await BitmapEncoder.CreateAsync(EncoderIdForExtension(extension), outputStream);
+                encoder.SetPixelData(
+                    BitmapPixelFormat.Bgra8,
+                    BitmapAlphaMode.Premultiplied,
+                    checked((uint)crop.Width),
+                    checked((uint)crop.Height),
+                    decoder.DpiX,
+                    decoder.DpiY,
+                    croppedPixels);
+                await encoder.FlushAsync();
+            }
+
+            await temporaryFile.MoveAndReplaceAsync(sourceFile);
+            temporaryFile = null;
+            _imageCache.Remove(path);
+            _isSavingCrop = false;
+            CancelCrop();
+            await DisplayCurrentPhotoAsync();
+        }
+        catch (Exception exception)
+        {
+            if (temporaryFile is not null)
+            {
+                try { await temporaryFile.DeleteAsync(StorageDeleteOption.PermanentDelete); }
+                catch { }
+            }
+            _isSavingCrop = false;
+            CropButton.IsEnabled = true;
+            await ShowErrorAsync("Could not crop photo", exception.Message);
+        }
+    }
+
+    private void PhotoViewport_SizeChanged(object sender, SizeChangedEventArgs e) => UpdateCropOverlay();
+
+    private Windows.Foundation.Rect GetDisplayedImageBounds()
+    {
+        if (PhotoImage.Source is not BitmapImage bitmap || bitmap.PixelWidth <= 0 || bitmap.PixelHeight <= 0)
+            return new Windows.Foundation.Rect();
+
+        var viewportWidth = PhotoViewport.ActualWidth;
+        var viewportHeight = PhotoViewport.ActualHeight;
+        var scale = Math.Min(viewportWidth / bitmap.PixelWidth, viewportHeight / bitmap.PixelHeight);
+        var width = bitmap.PixelWidth * scale;
+        var height = bitmap.PixelHeight * scale;
+        return new Windows.Foundation.Rect(
+            (viewportWidth - width) / 2,
+            (viewportHeight - height) / 2,
+            width,
+            height);
+    }
+
+    private void UpdateCropOverlay()
+    {
+        if (!_isCropping) return;
+        CropOverlay.Width = PhotoViewport.ActualWidth;
+        CropOverlay.Height = PhotoViewport.ActualHeight;
+        var image = GetDisplayedImageBounds();
+        if (image.Width <= 0 || image.Height <= 0) return;
+        var selection = new Windows.Foundation.Rect(
+            image.X + _cropRect.X * image.Width,
+            image.Y + _cropRect.Y * image.Height,
+            _cropRect.Width * image.Width,
+            _cropRect.Height * image.Height);
+
+        SetCanvasRect(CropSelection, selection.X, selection.Y, selection.Width, selection.Height);
+        SetCanvasRect(CropDimTop, image.X, image.Y, image.Width, selection.Y - image.Y);
+        SetCanvasRect(CropDimBottom, image.X, selection.Bottom, image.Width, image.Bottom - selection.Bottom);
+        SetCanvasRect(CropDimLeft, image.X, selection.Y, selection.X - image.X, selection.Height);
+        SetCanvasRect(CropDimRight, selection.Right, selection.Y, image.Right - selection.Right, selection.Height);
+    }
+
+    private static void SetCanvasRect(FrameworkElement element, double x, double y, double width, double height)
+    {
+        Canvas.SetLeft(element, x);
+        Canvas.SetTop(element, y);
+        element.Width = Math.Max(0, width);
+        element.Height = Math.Max(0, height);
+    }
+
+    private void CropSelection_PointerPressed(object sender, PointerRoutedEventArgs e) =>
+        BeginCropDrag("Move", e);
+
+    private void CropHandle_PointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        BeginCropDrag((sender as FrameworkElement)?.Tag?.ToString() ?? "Move", e);
+        e.Handled = true;
+    }
+
+    private void BeginCropDrag(string mode, PointerRoutedEventArgs e)
+    {
+        if (!_isCropping || _isSavingCrop) return;
+        _cropDragMode = mode;
+        _cropDragStart = _cropRect;
+        _cropPointerStart = e.GetCurrentPoint(CropOverlay).Position;
+        CropOverlay.CapturePointer(e.Pointer);
+        e.Handled = true;
+    }
+
+    private void CropOverlay_PointerMoved(object sender, PointerRoutedEventArgs e)
+    {
+        if (_cropDragMode is null) return;
+        var image = GetDisplayedImageBounds();
+        if (image.Width <= 0 || image.Height <= 0) return;
+        var point = e.GetCurrentPoint(CropOverlay).Position;
+        var dx = (point.X - _cropPointerStart.X) / image.Width;
+        var dy = (point.Y - _cropPointerStart.Y) / image.Height;
+        const double minimum = 0.05;
+        var left = _cropDragStart.X;
+        var top = _cropDragStart.Y;
+        var right = _cropDragStart.X + _cropDragStart.Width;
+        var bottom = _cropDragStart.Y + _cropDragStart.Height;
+
+        switch (_cropDragMode)
+        {
+            case "Move":
+                left = Math.Clamp(_cropDragStart.X + dx, 0, 1 - _cropDragStart.Width);
+                top = Math.Clamp(_cropDragStart.Y + dy, 0, 1 - _cropDragStart.Height);
+                right = left + _cropDragStart.Width;
+                bottom = top + _cropDragStart.Height;
+                break;
+            case "TopLeft":
+                left = Math.Clamp(_cropDragStart.X + dx, 0, right - minimum);
+                top = Math.Clamp(_cropDragStart.Y + dy, 0, bottom - minimum);
+                break;
+            case "TopRight":
+                right = Math.Clamp(right + dx, left + minimum, 1);
+                top = Math.Clamp(_cropDragStart.Y + dy, 0, bottom - minimum);
+                break;
+            case "BottomLeft":
+                left = Math.Clamp(_cropDragStart.X + dx, 0, right - minimum);
+                bottom = Math.Clamp(bottom + dy, top + minimum, 1);
+                break;
+            case "BottomRight":
+                right = Math.Clamp(right + dx, left + minimum, 1);
+                bottom = Math.Clamp(bottom + dy, top + minimum, 1);
+                break;
+        }
+
+        _cropRect = new NormalizedCropRect(left, top, right - left, bottom - top).Clamp(minimum);
+        UpdateCropOverlay();
+    }
+
+    private void CropOverlay_PointerReleased(object sender, PointerRoutedEventArgs e)
+    {
+        CropOverlay.ReleasePointerCapture(e.Pointer);
+        _cropDragMode = null;
+    }
+
+    private void CropOverlay_PointerCaptureLost(object sender, PointerRoutedEventArgs e) =>
+        _cropDragMode = null;
 
     private async void RotateLeft_Click(object sender, RoutedEventArgs e) =>
         await RotateCurrentAsync(BitmapRotation.Clockwise270Degrees);
@@ -490,6 +761,7 @@ public sealed partial class MainWindow : Window
 
     private void ClearPhoto()
     {
+        CancelCrop();
         CancelRename();
         PhotoImage.Source = null;
         WelcomePanel.Visibility = Visibility.Visible;
@@ -499,40 +771,89 @@ public sealed partial class MainWindow : Window
         _photos = null;
     }
 
-    private async void Window_KeyDown(object sender, KeyRoutedEventArgs e)
-    {
-        if (_isRenaming) return;
+    private bool KeyboardCommandIsBlocked => _isRenaming || _isDeleteConfirmationVisible || _isCropping;
 
-        if (e.Key == VirtualKey.Left && _photos?.MovePrevious() == true)
+    private async void Previous_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (KeyboardCommandIsBlocked || _photos?.MovePrevious() != true) return;
+        args.Handled = true;
+        await DisplayCurrentPhotoAsync();
+    }
+
+    private async void Next_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (KeyboardCommandIsBlocked || _photos?.MoveNext() != true) return;
+        args.Handled = true;
+        await DisplayCurrentPhotoAsync();
+    }
+
+    private async void RotateLeft_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (KeyboardCommandIsBlocked || _photos is null) return;
+        args.Handled = true;
+        await RotateCurrentAsync(BitmapRotation.Clockwise270Degrees);
+    }
+
+    private async void RotateRight_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (KeyboardCommandIsBlocked || _photos is null) return;
+        args.Handled = true;
+        await RotateCurrentAsync(BitmapRotation.Clockwise90Degrees);
+    }
+
+    private void ToggleFit_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (KeyboardCommandIsBlocked || _photos is null) return;
+        args.Handled = true;
+        _isFitToWindow = !_isFitToWindow;
+        PhotoImage.Stretch = _isFitToWindow ? Stretch.Uniform : Stretch.None;
+    }
+
+    private async void Rename_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (_isCropping && !_isSavingCrop)
         {
-            e.Handled = true;
-            await DisplayCurrentPhotoAsync();
+            args.Handled = true;
+            await CommitCropAsync();
+            return;
         }
-        else if (e.Key == VirtualKey.Right && _photos?.MoveNext() == true)
+        if (KeyboardCommandIsBlocked || _photos is null) return;
+        args.Handled = true;
+        BeginRename();
+    }
+
+    private async void Delete_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (KeyboardCommandIsBlocked || _photos is null) return;
+        args.Handled = true;
+        await DeleteCurrentAsync();
+    }
+
+    private void FullScreen_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (KeyboardCommandIsBlocked) return;
+        args.Handled = true;
+        ToggleFullScreen();
+    }
+
+    private void Escape_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (_isCropping && !_isSavingCrop)
         {
-            e.Handled = true;
-            await DisplayCurrentPhotoAsync();
+            args.Handled = true;
+            CancelCrop();
+            return;
         }
-        else if (e.Key == VirtualKey.Enter && _photos is not null)
-        {
-            e.Handled = true;
-            BeginRename();
-        }
-        else if (e.Key == VirtualKey.Delete && _photos is not null)
-        {
-            e.Handled = true;
-            await DeleteCurrentAsync();
-        }
-        else if (e.Key == VirtualKey.F && _photos is not null)
-        {
-            e.Handled = true;
-            ToggleFullScreen();
-        }
-        else if (e.Key == VirtualKey.Escape && _isFullScreen)
-        {
-            e.Handled = true;
-            ToggleFullScreen();
-        }
+        if (KeyboardCommandIsBlocked || !_isFullScreen) return;
+        args.Handled = true;
+        ToggleFullScreen();
+    }
+
+    private async void OpenFolder_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (KeyboardCommandIsBlocked) return;
+        args.Handled = true;
+        await OpenFolderAsync();
     }
 
     private async Task ShowErrorAsync(string title, string message)

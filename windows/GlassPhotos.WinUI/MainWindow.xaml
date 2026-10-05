@@ -7,7 +7,7 @@
     mc:Ignorable="d"
     Title="Glass Photos">
 
-    <Grid x:Name="RootGrid" Background="Black" KeyDown="Window_KeyDown">
+    <Grid x:Name="RootGrid" Background="Black">
         <Grid.Resources>
         <Style x:Key="HeaderIconButton" TargetType="Button">
             <Setter Property="Width" Value="38" />
@@ -45,6 +45,19 @@
             <Setter Property="TextWrapping" Value="Wrap" />
         </Style>
         </Grid.Resources>
+        <Grid.KeyboardAccelerators>
+            <KeyboardAccelerator Key="Left" Invoked="Previous_Invoked" />
+            <KeyboardAccelerator Key="Right" Invoked="Next_Invoked" />
+            <KeyboardAccelerator Key="Up" Invoked="RotateLeft_Invoked" />
+            <KeyboardAccelerator Key="Down" Invoked="RotateRight_Invoked" />
+            <KeyboardAccelerator Key="Space" Invoked="ToggleFit_Invoked" />
+            <KeyboardAccelerator Key="Enter" Invoked="Rename_Invoked" />
+            <KeyboardAccelerator Key="Delete" Invoked="Delete_Invoked" />
+            <KeyboardAccelerator Key="Back" Invoked="Delete_Invoked" />
+            <KeyboardAccelerator Key="F" Invoked="FullScreen_Invoked" />
+            <KeyboardAccelerator Key="Escape" Invoked="Escape_Invoked" />
+            <KeyboardAccelerator Key="O" Modifiers="Control" Invoked="OpenFolder_Invoked" />
+        </Grid.KeyboardAccelerators>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="Auto" />
@@ -110,6 +123,15 @@
                                 Height="32"
                                 CornerRadius="6"
                                 Click="Rename_Click" />
+                        <Button x:Name="CropButton"
+                                Style="{StaticResource HeaderIconButton}"
+                                Click="Crop_Click"
+                                ToolTipService.ToolTip="Crop photo">
+                            <TextBlock x:Name="CropIconText"
+                                       Text=""
+                                       FontFamily="Segoe Fluent Icons"
+                                       FontSize="20" />
+                        </Button>
                         <Button x:Name="RotateLeftButton"
                                 Style="{StaticResource PlainHeaderButton}"
                                 Click="RotateLeft_Click"
@@ -150,8 +172,41 @@
                 </Grid>
             </Border>
 
-            <Grid Grid.Row="1" Background="Black">
+            <Grid x:Name="PhotoViewport" Grid.Row="1" Background="Black" SizeChanged="PhotoViewport_SizeChanged">
                 <Image x:Name="PhotoImage" Stretch="Uniform" />
+
+                <Canvas x:Name="CropOverlay"
+                        Background="Transparent"
+                        Visibility="Collapsed"
+                        PointerMoved="CropOverlay_PointerMoved"
+                        PointerReleased="CropOverlay_PointerReleased"
+                        PointerCanceled="CropOverlay_PointerReleased"
+                        PointerCaptureLost="CropOverlay_PointerCaptureLost">
+                    <Border x:Name="CropDimTop" Background="#99000000" IsHitTestVisible="False" />
+                    <Border x:Name="CropDimBottom" Background="#99000000" IsHitTestVisible="False" />
+                    <Border x:Name="CropDimLeft" Background="#99000000" IsHitTestVisible="False" />
+                    <Border x:Name="CropDimRight" Background="#99000000" IsHitTestVisible="False" />
+                    <Border x:Name="CropSelection"
+                            Background="#01000000"
+                            BorderBrush="White"
+                            BorderThickness="2"
+                            PointerPressed="CropSelection_PointerPressed">
+                        <Grid>
+                            <Ellipse Tag="TopLeft" Width="16" Height="16" Fill="White" Stroke="#99000000"
+                                     HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-8"
+                                     PointerPressed="CropHandle_PointerPressed" />
+                            <Ellipse Tag="TopRight" Width="16" Height="16" Fill="White" Stroke="#99000000"
+                                     HorizontalAlignment="Right" VerticalAlignment="Top" Margin="-8"
+                                     PointerPressed="CropHandle_PointerPressed" />
+                            <Ellipse Tag="BottomLeft" Width="16" Height="16" Fill="White" Stroke="#99000000"
+                                     HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="-8"
+                                     PointerPressed="CropHandle_PointerPressed" />
+                            <Ellipse Tag="BottomRight" Width="16" Height="16" Fill="White" Stroke="#99000000"
+                                     HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="-8"
+                                     PointerPressed="CropHandle_PointerPressed" />
+                        </Grid>
+                    </Border>
+                </Canvas>
 
                 <StackPanel x:Name="WelcomePanel"
                             Width="400"

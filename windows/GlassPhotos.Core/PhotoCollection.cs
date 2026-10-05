@@ -37,6 +37,28 @@ public sealed class PhotoCollection
             Path.GetDirectoryName(source)!,
             newBaseName.Trim() + Path.GetExtension(source));
 
+        if (string.Equals(source, destination, StringComparison.OrdinalIgnoreCase))
+        {
+            if (!string.Equals(source, destination, StringComparison.Ordinal))
+            {
+                var temporary = Path.Combine(
+                    Path.GetDirectoryName(source)!,
+                    $".glassphotos-rename-{Guid.NewGuid():N}{Path.GetExtension(source)}");
+                File.Move(source, temporary);
+                try
+                {
+                    File.Move(temporary, destination);
+                }
+                catch
+                {
+                    File.Move(temporary, source);
+                    throw;
+                }
+                _files[CurrentIndex] = destination;
+            }
+            return _files[CurrentIndex];
+        }
+
         if (File.Exists(destination))
         {
             throw new IOException($"A file named '{Path.GetFileName(destination)}' already exists.");

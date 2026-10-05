@@ -45,6 +45,14 @@ struct PhotoViewerApp: App {
                 Button("Toggle Full Screen") { vm.toggleFullScreen() }
                     .keyboardShortcut("f", modifiers: [])
             }
+
+            CommandGroup(after: .help) {
+                Button("Glass Photos on GitHub") {
+                    NSWorkspace.shared.open(
+                        URL(string: "https://github.com/GunayAnach/Glass-Photos-Viewer")!
+                    )
+                }
+            }
         }
         .handlesExternalEvents(matching: Set(arrayLiteral: "file"))
     }
@@ -61,6 +69,9 @@ final class ViewerModel: ObservableObject {
     @Published var isRenaming = false
     @Published var renameDraft = ""
     @Published private(set) var isRotating = false
+    @Published var isCropping = false
+    @Published var cropRect = CGRect(x: 0.1, y: 0.1, width: 0.8, height: 0.8)
+    @Published private(set) var isSavingCrop = false
     
     private var keyMonitor: Any?
     private var isDeleteConfirmationVisible = false
@@ -214,6 +225,7 @@ final class ViewerModel: ObservableObject {
     // Navigation
     func show(_ i: Int) {
         guard !files.isEmpty else { return }
+        cancelCrop()
         index = (i % files.count + files.count) % files.count
         requestSelectedImage()
         preloadExifData()
@@ -255,6 +267,45 @@ final class ViewerModel: ObservableObject {
             } catch {
                 DispatchQueue.main.async {
                     self.isRotating = false
+                    self.showFileOperationError(error)
+                }
+            }
+        }
+    }
+
+    func beginCrop() {
+        guard currentImage != nil, !isSavingCrop else { return }
+        cancelRenaming()
+        fitToWindow = true
+        showInfoSidebar = false
+        cropRect = CGRect(x: 0.1, y: 0.1, width: 0.8, height: 0.8)
+        isCropping = true
+    }
+
+    func cancelCrop() {
+        guard isCropping, !isSavingCrop else { return }
+        isCropping = false
+    }
+
+    func commitCrop() {
+        guard isCropping, !isSavingCrop, let currentURL = files[safe: index] else { return }
+        let selection = cropRect
+        isSavingCrop = true
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                try FileOperations.crop(currentURL, normalizedRect: selection)
+                DispatchQueue.main.async {
+                    self.isSavingCrop = false
+                    self.isCropping = false
+                    guard self.files[safe: self.index] == currentURL else { return }
+                    self.imagePipeline.removeCachedImage(for: currentURL)
+                    self.currentImage = nil
+                    self.requestSelectedImage()
+                    if self.showInfoSidebar { self.loadExifData() }
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self.isSavingCrop = false
                     self.showFileOperationError(error)
                 }
             }
@@ -551,6 +602,18 @@ final class ViewerModel: ObservableObject {
         guard keyMonitor == nil else { return }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] e in
             guard let self else { return e }
+            if self.isCropping {
+                switch e.keyCode {
+                case 36, 76:
+                    self.commitCrop()
+                    return nil
+                case 53:
+                    self.cancelCrop()
+                    return nil
+                default:
+                    return e
+                }
+            }
             switch KeyboardCommand.resolve(
                 keyCode: e.keyCode,
                 isRenaming: self.isRenaming,
@@ -719,10 +782,13 @@ struct Viewer: View {
                         currentIndex: vm.index,
                         totalCount: vm.files.count,
                         isRenaming: vm.isRenaming,
+                        isCropping: vm.isCropping,
                         renameText: $vm.renameDraft,
                         onRenameStart: { vm.beginRenaming() },
                         onRenameCommit: { vm.commitRename() },
                         onRenameCancel: { vm.cancelRenaming() },
+                        onCropStart: { vm.beginCrop() },
+                        onCropCommit: { vm.commitCrop() },
                         onRotateCounterClockwise: { vm.rotateCounterClockwise() },
                         onRotateClockwise: { vm.rotateClockwise() },
                         onDelete: { vm.confirmDeleteCurrentFile() },
@@ -739,6 +805,7 @@ struct Viewer: View {
                 GeometryReader { geo in
                     if let nsimg = vm.currentImage {
                         let imageView = Image(nsImage: nsimg).interpolation(.high).antialiased(true)
+                        ZStack {
                         Group {
                             if vm.fitToWindow {
                                 imageView.resizable().scaledToFit()
@@ -860,11 +927,20 @@ struct Viewer: View {
                         .contentShape(Rectangle())
                         .gesture(DragGesture(minimumDistance: 20).onEnded { value in
                             // Only handle navigation gestures when not zoomed in
-                            if scale <= 1.0 {
+                            if scale <= 1.0 && !vm.isCropping {
                                 if value.translation.width < 0 { vm.next() }
                                 if value.translation.width > 0 { vm.prev() }
                             }
                         })
+
+                            if vm.isCropping {
+                                CropOverlay(
+                                    imageSize: nsimg.size,
+                                    containerSize: geo.size,
+                                    normalizedRect: $vm.cropRect
+                                )
+                            }
+                        }
                     } else {
                         ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
@@ -911,6 +987,14 @@ struct Viewer: View {
                 lastScale = 1.0
             }
         }
+        .onChange(of: vm.isCropping) { cropping in
+            if cropping {
+                scale = 1.0
+                offset = .zero
+                lastOffset = .zero
+                lastScale = 1.0
+            }
+        }
 
     }
     
@@ -933,15 +1017,145 @@ struct Viewer: View {
     }
 }
 
+struct CropOverlay: View {
+    private enum Corner: CaseIterable, Hashable {
+        case topLeft, topRight, bottomLeft, bottomRight
+    }
+
+    let imageSize: NSSize
+    let containerSize: CGSize
+    @Binding var normalizedRect: CGRect
+    @State private var gestureStart: CGRect?
+
+    private var imageFrame: CGRect {
+        guard imageSize.width > 0, imageSize.height > 0 else { return .zero }
+        let scale = min(containerSize.width / imageSize.width, containerSize.height / imageSize.height)
+        let size = CGSize(width: imageSize.width * scale, height: imageSize.height * scale)
+        return CGRect(
+            x: (containerSize.width - size.width) / 2,
+            y: (containerSize.height - size.height) / 2,
+            width: size.width,
+            height: size.height
+        )
+    }
+
+    private var selectionFrame: CGRect {
+        CGRect(
+            x: imageFrame.minX + normalizedRect.minX * imageFrame.width,
+            y: imageFrame.minY + normalizedRect.minY * imageFrame.height,
+            width: normalizedRect.width * imageFrame.width,
+            height: normalizedRect.height * imageFrame.height
+        )
+    }
+
+    var body: some View {
+        let selection = selectionFrame
+        ZStack(alignment: .topLeading) {
+            dimmingRect(CGRect(x: imageFrame.minX, y: imageFrame.minY,
+                               width: imageFrame.width, height: max(0, selection.minY - imageFrame.minY)))
+            dimmingRect(CGRect(x: imageFrame.minX, y: selection.maxY,
+                               width: imageFrame.width, height: max(0, imageFrame.maxY - selection.maxY)))
+            dimmingRect(CGRect(x: imageFrame.minX, y: selection.minY,
+                               width: max(0, selection.minX - imageFrame.minX), height: selection.height))
+            dimmingRect(CGRect(x: selection.maxX, y: selection.minY,
+                               width: max(0, imageFrame.maxX - selection.maxX), height: selection.height))
+
+            Rectangle()
+                .fill(Color.clear)
+                .contentShape(Rectangle())
+                .overlay(Rectangle().stroke(Color.white, lineWidth: 2))
+                .frame(width: selection.width, height: selection.height)
+                .position(x: selection.midX, y: selection.midY)
+                .gesture(moveGesture)
+
+            ForEach(Corner.allCases, id: \.self) { corner in
+                Circle()
+                    .fill(Color.white)
+                    .overlay(Circle().stroke(Color.black.opacity(0.55), lineWidth: 1))
+                    .frame(width: 16, height: 16)
+                    .position(handlePosition(corner, in: selection))
+                    .gesture(resizeGesture(corner))
+            }
+        }
+        .frame(width: containerSize.width, height: containerSize.height)
+    }
+
+    @ViewBuilder
+    private func dimmingRect(_ rect: CGRect) -> some View {
+        Rectangle()
+            .fill(Color.black.opacity(0.55))
+            .frame(width: rect.width, height: rect.height)
+            .position(x: rect.midX, y: rect.midY)
+            .allowsHitTesting(false)
+    }
+
+    private func handlePosition(_ corner: Corner, in rect: CGRect) -> CGPoint {
+        switch corner {
+        case .topLeft: return CGPoint(x: rect.minX, y: rect.minY)
+        case .topRight: return CGPoint(x: rect.maxX, y: rect.minY)
+        case .bottomLeft: return CGPoint(x: rect.minX, y: rect.maxY)
+        case .bottomRight: return CGPoint(x: rect.maxX, y: rect.maxY)
+        }
+    }
+
+    private var moveGesture: some Gesture {
+        DragGesture()
+            .onChanged { value in
+                let start = gestureStart ?? normalizedRect
+                if gestureStart == nil { gestureStart = start }
+                var moved = start
+                moved.origin.x = min(max(0, start.minX + value.translation.width / imageFrame.width), 1 - start.width)
+                moved.origin.y = min(max(0, start.minY + value.translation.height / imageFrame.height), 1 - start.height)
+                normalizedRect = moved
+            }
+            .onEnded { _ in gestureStart = nil }
+    }
+
+    private func resizeGesture(_ corner: Corner) -> some Gesture {
+        DragGesture()
+            .onChanged { value in
+                let start = gestureStart ?? normalizedRect
+                if gestureStart == nil { gestureStart = start }
+                let dx = value.translation.width / imageFrame.width
+                let dy = value.translation.height / imageFrame.height
+                let minimum: CGFloat = 0.05
+                var left = start.minX
+                var right = start.maxX
+                var top = start.minY
+                var bottom = start.maxY
+
+                switch corner {
+                case .topLeft:
+                    left = min(max(0, start.minX + dx), start.maxX - minimum)
+                    top = min(max(0, start.minY + dy), start.maxY - minimum)
+                case .topRight:
+                    right = max(min(1, start.maxX + dx), start.minX + minimum)
+                    top = min(max(0, start.minY + dy), start.maxY - minimum)
+                case .bottomLeft:
+                    left = min(max(0, start.minX + dx), start.maxX - minimum)
+                    bottom = max(min(1, start.maxY + dy), start.minY + minimum)
+                case .bottomRight:
+                    right = max(min(1, start.maxX + dx), start.minX + minimum)
+                    bottom = max(min(1, start.maxY + dy), start.minY + minimum)
+                }
+                normalizedRect = CGRect(x: left, y: top, width: right - left, height: bottom - top)
+            }
+            .onEnded { _ in gestureStart = nil }
+    }
+}
+
 struct TopHeader: View {
     let imageName: String
     let currentIndex: Int
     let totalCount: Int
     let isRenaming: Bool
+    let isCropping: Bool
     @Binding var renameText: String
     let onRenameStart: () -> Void
     let onRenameCommit: () -> Void
     let onRenameCancel: () -> Void
+    let onCropStart: () -> Void
+    let onCropCommit: () -> Void
     let onRotateCounterClockwise: () -> Void
     let onRotateClockwise: () -> Void
     let onDelete: () -> Void
@@ -1001,6 +1215,18 @@ struct TopHeader: View {
                 }
                 .buttonStyle(.bordered)
                 .help(isRenaming ? "Finish renaming" : "Rename photo (Return)")
+                .disabled(isCropping)
+
+                Button(action: isCropping ? onCropCommit : onCropStart) {
+                    Image(systemName: isCropping ? "checkmark" : "crop")
+                        .font(.title2)
+                        .foregroundStyle(isCropping ? .green : .white)
+                        .padding(8)
+                        .background(.ultraThinMaterial)
+                        .cornerRadius(8)
+                }
+                .buttonStyle(.plain)
+                .help(isCropping ? "Apply crop (Return)" : "Crop photo")
 
                 Button(action: onRotateCounterClockwise) {
                     Image(systemName: "rotate.left")
@@ -1008,6 +1234,7 @@ struct TopHeader: View {
                 }
                 .buttonStyle(.plain)
                 .help("Rotate counter-clockwise (Down Arrow)")
+                .disabled(isCropping)
 
                 Button(action: onRotateClockwise) {
                     Image(systemName: "rotate.right")
@@ -1015,6 +1242,7 @@ struct TopHeader: View {
                 }
                 .buttonStyle(.plain)
                 .help("Rotate clockwise (Up Arrow)")
+                .disabled(isCropping)
 
                 // Info button
                 Button(action: onInfoToggle) {
@@ -1027,6 +1255,7 @@ struct TopHeader: View {
                 }
                 .buttonStyle(.plain)
                 .help("Show Image Info")
+                .disabled(isCropping)
                 
                 // Share button
                 Button(action: onShare) {
@@ -1039,6 +1268,7 @@ struct TopHeader: View {
                 }
                 .buttonStyle(.plain)
                 .help("Share Image")
+                .disabled(isCropping)
                 
                 // Fullscreen button
                 Button(action: onFullScreen) {
@@ -1051,6 +1281,7 @@ struct TopHeader: View {
                 }
                 .buttonStyle(.plain)
                 .help("Enter Full Screen")
+                .disabled(isCropping)
 
                 Button(action: onDelete) {
                     Image(systemName: "trash")
@@ -1062,6 +1293,7 @@ struct TopHeader: View {
                 }
                 .buttonStyle(.plain)
                 .help("Move to Trash (Delete)")
+                .disabled(isCropping)
             }
         }
         .padding(.horizontal, 16)
