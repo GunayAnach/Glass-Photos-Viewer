@@ -161,17 +161,17 @@
                                 ToolTipService.ToolTip="Share Image">
                             <TextBlock Text="↥" FontSize="24" />
                         </Button>
-                        <Button x:Name="FullScreenButton"
-                                Style="{StaticResource HeaderIconButton}"
-                                Click="FullScreen_Click"
-                                ToolTipService.ToolTip="Full Screen (F / F11)">
-                            <TextBlock Text="⛶" FontSize="22" />
-                        </Button>
                         <Button x:Name="DeleteButton"
                                 Style="{StaticResource HeaderIconButton}"
                                 Click="Delete_Click"
                                 ToolTipService.ToolTip="Delete Photo (Del)">
                             <TextBlock Text="" FontFamily="Segoe Fluent Icons" FontSize="20" Foreground="#FF453A" />
+                        </Button>
+                        <Button x:Name="FullScreenButton"
+                                Style="{StaticResource HeaderIconButton}"
+                                Click="FullScreen_Click"
+                                ToolTipService.ToolTip="Full Screen (F / F11)">
+                            <TextBlock Text="⛶" FontSize="22" />
                         </Button>
                     </StackPanel>
                 </Grid>

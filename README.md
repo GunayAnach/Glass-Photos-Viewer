@@ -68,11 +68,11 @@ Shared documentation, changelog, licensing, security policy, and CI configuratio
 | `I` | Toggle image information |
 | `Backspace` / `Delete` | Move the current photo to Trash or Recycle Bin |
 | `F` / `F11` | Toggle fullscreen |
-| `Esc` | Exit fullscreen or cancel cropping |
+| `Esc` | Exit Glass Photo Viewer |
 | `Cmd+O` on macOS | Open folder |
 | `Ctrl+O` on Windows | Open folder |
 
-Keyboard commands remain inactive while a rename field or confirmation dialog is open.
+Photo-editing keyboard commands remain inactive while a rename field or confirmation dialog is open; `Esc` still exits the viewer.
 
 ## Cropping
 
@@ -80,7 +80,7 @@ Keyboard commands remain inactive while a rename field or confirmation dialog is
 2. Drag inside the crop rectangle to move it.
 3. Drag any corner handle to resize it.
 4. Press the green **tick** or `Enter`/`Return` to crop and overwrite the current image.
-5. Press `Esc` to cancel without changing the file.
+5. Press `Esc` to exit the viewer without applying an unfinished crop.
 
 Cropping and rotation rewrite the current image, so retain a backup when editing irreplaceable originals.
 

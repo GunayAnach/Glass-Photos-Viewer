@@ -2,6 +2,15 @@
 
 All notable changes to **Glass Photo Viewer** are recorded here. macOS and Windows share one release version.
 
+## [Unreleased]
+
+### Changed
+- `Esc` now exits Glass Photo Viewer on macOS and Windows.
+- The Delete and Fullscreen toolbar buttons have swapped positions on both platforms.
+
+### Fixed
+- macOS now saves and restores the main window’s size and location through the stable `GlassPhotos.MainWindow` key, independent of SwiftUI’s generated autosave name.
+
 ## [1.2.0] - 2026-10-06
 
 ### Added

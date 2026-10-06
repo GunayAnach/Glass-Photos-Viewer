@@ -29,7 +29,6 @@ struct GlassPhotoViewerApp: App {
                         }
                     }
                 }
-                .background(WindowFrameAutosaver())
                 .frame(minWidth: 800, minHeight: 600)
         }
         .windowStyle(.titleBar)
@@ -56,34 +55,6 @@ struct GlassPhotoViewerApp: App {
             }
         }
         .handlesExternalEvents(matching: Set(arrayLiteral: "file"))
-    }
-}
-
-private struct WindowFrameAutosaver: NSViewRepresentable {
-    final class Coordinator {
-        weak var configuredWindow: NSWindow?
-
-        func configure(_ window: NSWindow?) {
-            guard let window, configuredWindow !== window else { return }
-            configuredWindow = window
-            WindowPersistence.configure(window)
-        }
-    }
-
-    func makeCoordinator() -> Coordinator { Coordinator() }
-
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView()
-        DispatchQueue.main.async {
-            context.coordinator.configure(view.window)
-        }
-        return view
-    }
-
-    func updateNSView(_ view: NSView, context: Context) {
-        DispatchQueue.main.async {
-            context.coordinator.configure(view.window)
-        }
     }
 }
 
@@ -692,26 +663,28 @@ final class ViewerModel: ObservableObject {
             guard let self else { return e }
             let disallowedModifiers: NSEvent.ModifierFlags = [.command, .control, .option]
             let hasDisallowedModifiers = !e.modifierFlags.intersection(disallowedModifiers).isEmpty
+            let command = KeyboardCommand.resolve(
+                keyCode: e.keyCode,
+                charactersIgnoringModifiers: e.charactersIgnoringModifiers,
+                hasDisallowedModifiers: hasDisallowedModifiers,
+                isRenaming: self.isRenaming,
+                isDeleteConfirmationVisible: self.isDeleteConfirmationVisible
+            )
+            if command == .exitApplication {
+                NSApp.terminate(nil)
+                return nil
+            }
             if self.isCropping {
                 guard !hasDisallowedModifiers else { return e }
                 switch e.keyCode {
                 case 36, 76:
                     self.commitCrop()
                     return nil
-                case 53:
-                    self.cancelCrop()
-                    return nil
                 default:
                     return e
                 }
             }
-            switch KeyboardCommand.resolve(
-                keyCode: e.keyCode,
-                charactersIgnoringModifiers: e.charactersIgnoringModifiers,
-                hasDisallowedModifiers: hasDisallowedModifiers,
-                isRenaming: self.isRenaming,
-                isDeleteConfirmationVisible: self.isDeleteConfirmationVisible
-            ) {
+            switch command {
             case .passThrough:
                 return e
             case .previous: self.prev(); return nil
@@ -724,12 +697,7 @@ final class ViewerModel: ObservableObject {
             case .toggleInfo: self.toggleInfoSidebar(); return nil
             case .toggleFullScreen: self.toggleFullScreen(); return nil
             case .delete: self.confirmDeleteCurrentFile(); return nil
-            case .escape:
-                if NSApp.keyWindow?.styleMask.contains(.fullScreen) == true {
-                    self.toggleFullScreen()
-                    return nil
-                }
-                return e
+            case .exitApplication: return nil
             case .unhandled:
                 return e
             }
@@ -1360,6 +1328,18 @@ struct TopHeader: View {
                 .help("Share Image")
                 .disabled(isCropping)
                 
+                Button(action: onDelete) {
+                    Image(systemName: "trash")
+                        .font(.title2)
+                        .foregroundStyle(.red)
+                        .padding(8)
+                        .background(.ultraThinMaterial)
+                        .cornerRadius(8)
+                }
+                .buttonStyle(.plain)
+                .help("Delete Photo (Del)")
+                .disabled(isCropping)
+
                 // Fullscreen button
                 Button(action: onFullScreen) {
                     Image(systemName: "arrow.up.left.and.arrow.down.right")
@@ -1371,18 +1351,6 @@ struct TopHeader: View {
                 }
                 .buttonStyle(.plain)
                 .help("Full Screen (F / F11)")
-                .disabled(isCropping)
-
-                Button(action: onDelete) {
-                    Image(systemName: "trash")
-                        .font(.title2)
-                        .foregroundStyle(.red)
-                        .padding(8)
-                        .background(.ultraThinMaterial)
-                        .cornerRadius(8)
-                }
-                .buttonStyle(.plain)
-                .help("Delete Photo (Del)")
                 .disabled(isCropping)
             }
         }
@@ -1415,7 +1383,7 @@ struct HUD: View {
                 .truncationMode(.middle)
                 .foregroundStyle(.white)
             Spacer()
-            Text("← / → navigate • Space fit • F full screen")
+            Text("← / → navigate • Space fit • F full screen • Esc exit")
                 .foregroundStyle(.secondary)
         }
         .font(.caption)
@@ -1445,19 +1413,49 @@ extension NSApplication {
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     var openedFileURLs: [URL]?
+    private let windowFrameTracker = WindowPersistence.Tracker()
+    private var keyWindowObserver: NSObjectProtocol?
+
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        keyWindowObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didBecomeKeyNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let window = notification.object as? NSWindow else { return }
+            self?.configureMainWindow(window)
+        }
+    }
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         print("App delegate finished launching")
         // Ensure the main window is visible
         DispatchQueue.main.async {
-            if let window = NSApplication.shared.windows.first {
+            let application = NSApplication.shared
+            if let window = WindowPersistence.preferredWindow(
+                keyWindow: application.keyWindow,
+                mainWindow: application.mainWindow,
+                windows: application.windows
+            ) {
+                self.configureMainWindow(window)
                 window.makeKeyAndOrderFront(nil)
-                NSApplication.shared.activate(ignoringOtherApps: true)
+                application.activate(ignoringOtherApps: true)
                 print("Window made key and ordered front")
             } else {
                 print("No windows found")
             }
         }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        if let keyWindowObserver {
+            NotificationCenter.default.removeObserver(keyWindowObserver)
+        }
+    }
+
+    private func configureMainWindow(_ window: NSWindow) {
+        guard window.level == .normal, window.styleMask.contains(.titled) else { return }
+        windowFrameTracker.configure(window)
     }
     
     func application(_ application: NSApplication, open urls: [URL]) {

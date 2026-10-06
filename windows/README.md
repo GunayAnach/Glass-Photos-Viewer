@@ -67,7 +67,7 @@ Output: `dist/Glass-Photo-Viewer-Windows-x64.zip`
 | `I` | Toggle image information |
 | `Backspace` / `Delete` | Move to Recycle Bin |
 | `F` / `F11` | Toggle fullscreen |
-| `Esc` | Exit fullscreen or cancel crop |
+| `Esc` | Exit Glass Photo Viewer |
 | `Ctrl+O` | Open folder |
 
 ## Development

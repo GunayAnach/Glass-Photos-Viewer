@@ -999,15 +999,8 @@ public sealed partial class MainWindow : Window
 
     private void Escape_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
-        if (_isCropping && !_isSavingCrop)
-        {
-            args.Handled = true;
-            CancelCrop();
-            return;
-        }
-        if (KeyboardCommandIsBlocked || !_isFullScreen) return;
         args.Handled = true;
-        ToggleFullScreen();
+        Close();
     }
 
     private async void OpenFolder_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
