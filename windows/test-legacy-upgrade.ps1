@@ -78,6 +78,7 @@ try {
 
     $currentExe = Join-Path $legacySource "GlassPhotoViewer.exe"
     $legacyExeSource = Join-Path $legacySource "GlassPhotos.WinUI.exe"
+    $legacyProcessOutput = Join-Path $legacyProcessProject "publish"
     New-Item -ItemType Directory -Path $legacyProcessProject -Force | Out-Null
     Set-Content -Path (Join-Path $legacyProcessProject "LegacyProcessFixture.csproj") -Value @'
 <Project Sdk="Microsoft.NET.Sdk">
@@ -100,11 +101,15 @@ internal static class Program
     dotnet publish $legacyProcessProject `
         --configuration Release `
         --runtime win-x64 `
-        --self-contained false `
-        --output $legacySource
-    if ($LASTEXITCODE -ne 0 -or -not (Test-Path $legacyExeSource)) {
+        --self-contained true `
+        -p:PublishSingleFile=true `
+        -p:DebugType=None `
+        --output $legacyProcessOutput
+    $builtLegacyExe = Join-Path $legacyProcessOutput "GlassPhotos.WinUI.exe"
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path $builtLegacyExe)) {
         throw "Could not build the legacy running-process fixture."
     }
+    Copy-Item $builtLegacyExe $legacyExeSource -Force
     $assets = Join-Path $legacySource "Assets"
     Copy-Item (Join-Path $assets "GlassPhotoViewer.ico") (Join-Path $assets "GlassPhotos.ico") -Force
     Copy-Item (Join-Path $assets "GlassPhotoViewer.png") (Join-Path $assets "GlassPhotos.png") -Force
