@@ -11,6 +11,7 @@ $currentInstaller = Join-Path $repositoryRoot "dist/Glass-Photo-Viewer-Windows-$
 $legacySource = Join-Path $repositoryRoot "dist/Glass-Photos-Windows-$Architecture-Legacy-Fixture"
 $legacyScript = Join-Path $PSScriptRoot "installer/GlassPhotos.LegacyUpgradeFixture.iss"
 $legacyInstaller = Join-Path $repositoryRoot "dist/Glass-Photos-Windows-x64-Legacy-Setup.exe"
+$legacyProcessProject = Join-Path ([System.IO.Path]::GetTempPath()) "GlassPhotoViewer-LegacyProcessFixture-$PID"
 $legacyInstallDirectory = Join-Path $env:LOCALAPPDATA "Programs/Glass Photos"
 $currentPlacementDirectory = Join-Path $env:LOCALAPPDATA "Glass Photo Viewer"
 $legacyPlacementDirectory = Join-Path $env:LOCALAPPDATA "Glass Photos"
@@ -67,6 +68,7 @@ $upgradedProcess = $null
 try {
     Remove-Item $legacySource -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item $legacyInstaller -Force -ErrorAction SilentlyContinue
+    Remove-Item $legacyProcessProject -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item $legacyInstallDirectory -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item $currentPlacementDirectory -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item $legacyPlacementDirectory -Recurse -Force -ErrorAction SilentlyContinue
@@ -76,12 +78,32 @@ try {
 
     $currentExe = Join-Path $legacySource "GlassPhotoViewer.exe"
     $legacyExeSource = Join-Path $legacySource "GlassPhotos.WinUI.exe"
-    Copy-Item $currentExe $legacyExeSource -Force
-    foreach ($suffix in @("deps.json", "runtimeconfig.json")) {
-        $currentRuntimeFile = Join-Path $legacySource "GlassPhotoViewer.$suffix"
-        if (Test-Path $currentRuntimeFile) {
-            Copy-Item $currentRuntimeFile (Join-Path $legacySource "GlassPhotos.WinUI.$suffix") -Force
-        }
+    New-Item -ItemType Directory -Path $legacyProcessProject -Force | Out-Null
+    Set-Content -Path (Join-Path $legacyProcessProject "LegacyProcessFixture.csproj") -Value @'
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>GlassPhotos.WinUI</AssemblyName>
+    <UseAppHost>true</UseAppHost>
+  </PropertyGroup>
+</Project>
+'@
+    Set-Content -Path (Join-Path $legacyProcessProject "Program.cs") -Value @'
+using System.Threading;
+
+internal static class Program
+{
+    public static void Main() => Thread.Sleep(Timeout.Infinite);
+}
+'@
+    dotnet publish $legacyProcessProject `
+        --configuration Release `
+        --runtime win-x64 `
+        --self-contained false `
+        --output $legacySource
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path $legacyExeSource)) {
+        throw "Could not build the legacy running-process fixture."
     }
     $assets = Join-Path $legacySource "Assets"
     Copy-Item (Join-Path $assets "GlassPhotoViewer.ico") (Join-Path $assets "GlassPhotos.ico") -Force
@@ -106,7 +128,11 @@ try {
     Set-Content -Path $legacyPlacementPath -Value '{"X":120,"Y":90,"Width":640,"Height":480}' -NoNewline
 
     $legacyProcess = Start-Process $installedLegacyExe -PassThru
-    Wait-ForMainWindow $legacyProcess
+    Start-Sleep -Seconds 3
+    $legacyProcess.Refresh()
+    if ($legacyProcess.HasExited) {
+        throw "Legacy running-process fixture exited before the upgrade test."
+    }
 
     Invoke-Installer $currentInstaller
     $legacyProcess.Refresh()
@@ -192,6 +218,7 @@ finally {
     Remove-Item $legacyInstallDirectory -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item $legacySource -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item $legacyInstaller -Force -ErrorAction SilentlyContinue
+    Remove-Item $legacyProcessProject -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item $currentPlacementDirectory -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item $legacyPlacementDirectory -Recurse -Force -ErrorAction SilentlyContinue
 }

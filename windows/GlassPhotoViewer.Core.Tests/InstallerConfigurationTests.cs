@@ -74,6 +74,9 @@ public sealed class InstallerConfigurationTests
         Assert.Contains("GlassPhotos.WinUI.exe", fixture);
         Assert.Contains("GlassPhotos.LegacyUpgradeFixture.iss", upgradeTest);
         Assert.Contains("GlassPhotos.WinUI.exe", upgradeTest);
+        Assert.Contains("dotnet publish", upgradeTest);
+        Assert.Contains("Thread.Sleep(Timeout.Infinite)", upgradeTest);
+        Assert.DoesNotContain("Copy-Item $currentExe $legacyExeSource", upgradeTest);
         Assert.Contains("window-placement.json", upgradeTest);
         Assert.Contains("test-legacy-upgrade.ps1", workflow);
     }
