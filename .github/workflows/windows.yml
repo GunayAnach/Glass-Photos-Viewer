@@ -135,17 +135,18 @@ jobs:
             throw "Window placement was not restored: $($restored.Left),$($restored.Top) ${restoredWidth}x${restoredHeight}."
           }
           Stop-Process -Id $process.Id -Force
+          Wait-Process -Id $process.Id -Timeout 10 -ErrorAction SilentlyContinue
 
           # Verify an upgrade closes the running viewer and replaces even a read-only stale file.
           $sourceAsset = Resolve-Path "dist/Glass-Photo-Viewer-Windows-x64/Assets/GlassPhotoViewer.png"
           $installedAsset = Join-Path $env:LOCALAPPDATA "Programs/Glass Photo Viewer/Assets/GlassPhotoViewer.png"
+          [System.IO.File]::WriteAllText($installedAsset, "stale installer-upgrade test file")
+          (Get-Item $installedAsset).IsReadOnly = $true
           $process = Start-Process $installedExe -PassThru
           Start-Sleep -Seconds 5
           if ($process.HasExited) {
             throw "Installed app exited before the upgrade smoke test."
           }
-          [System.IO.File]::WriteAllText($installedAsset, "stale installer-upgrade test file")
-          (Get-Item $installedAsset).IsReadOnly = $true
 
           $upgrade = Start-Process $installer -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/NORESTARTAPPLICATIONS", "/SP-" -Wait -PassThru
           if ($upgrade.ExitCode -ne 0) {
