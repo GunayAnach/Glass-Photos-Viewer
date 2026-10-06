@@ -48,6 +48,22 @@ final class KeyboardCommandTests: XCTestCase {
         )
     }
 
+    func testCropAndDeleteShortcutsMatchAcrossPlatforms() {
+        XCTAssertEqual(
+            KeyboardCommand.resolve(
+                keyCode: 8,
+                charactersIgnoringModifiers: "c",
+                isRenaming: false,
+                isDeleteConfirmationVisible: false
+            ),
+            .beginCrop
+        )
+        XCTAssertEqual(
+            KeyboardCommand.resolve(keyCode: 117, isRenaming: false, isDeleteConfirmationVisible: false),
+            .delete
+        )
+    }
+
     func testLetterShortcutsFollowTheTypedCharacterAndIgnoreCommandCombos() {
         XCTAssertEqual(
             KeyboardCommand.resolve(

@@ -6,6 +6,7 @@ enum KeyboardCommand: Equatable {
     case rotateCounterClockwise
     case toggleFit
     case beginRename
+    case beginCrop
     case toggleInfo
     case toggleFullScreen
     case delete
@@ -33,6 +34,7 @@ enum KeyboardCommand: Equatable {
         case 53: return .escape
         default:
             switch charactersIgnoringModifiers?.lowercased() {
+            case "c": return .beginCrop
             case "i": return .toggleInfo
             case "f": return .toggleFullScreen
             default: return .unhandled

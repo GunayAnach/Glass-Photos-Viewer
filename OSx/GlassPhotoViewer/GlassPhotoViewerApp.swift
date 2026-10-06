@@ -720,6 +720,7 @@ final class ViewerModel: ObservableObject {
             case .rotateCounterClockwise: self.rotateCounterClockwise(); return nil
             case .toggleFit: self.toggleFit(); return nil
             case .beginRename: self.beginRenaming(); return nil
+            case .beginCrop: self.beginCrop(); return nil
             case .toggleInfo: self.toggleInfoSidebar(); return nil
             case .toggleFullScreen: self.toggleFullScreen(); return nil
             case .delete: self.confirmDeleteCurrentFile(); return nil
@@ -1315,7 +1316,7 @@ struct TopHeader: View {
                         .cornerRadius(8)
                 }
                 .buttonStyle(.plain)
-                .help(isCropping ? "Apply crop (Return)" : "Crop photo")
+                .help(isCropping ? "Apply Crop (Return)" : "Crop Photo (C)")
 
                 Button(action: onRotateCounterClockwise) {
                     Image(systemName: "rotate.left")
@@ -1381,7 +1382,7 @@ struct TopHeader: View {
                         .cornerRadius(8)
                 }
                 .buttonStyle(.plain)
-                .help("Move to Trash (Delete)")
+                .help("Delete Photo (Del)")
                 .disabled(isCropping)
             }
         }

@@ -2,7 +2,7 @@
 
 This directory contains the native Windows 10/11 implementation of [Glass Photo Viewer](https://github.com/GunayAnach/Glass-Photos-Viewer), built with C#, .NET, and WinUI 3.
 
-**Current development version: 1.2.0** — aligned with the macOS application and the project [changelog](../CHANGELOG.md).
+**Current release: 1.2.0** — aligned with the macOS application and the project [changelog](../CHANGELOG.md).
 
 ## Layout
 

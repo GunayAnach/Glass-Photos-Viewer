@@ -54,6 +54,7 @@
             <KeyboardAccelerator Key="Enter" Invoked="Rename_Invoked" />
             <KeyboardAccelerator Key="F2" Invoked="RenameOnly_Invoked" />
             <KeyboardAccelerator Key="I" Invoked="Info_Invoked" />
+            <KeyboardAccelerator Key="C" Invoked="Crop_Invoked" />
             <KeyboardAccelerator Key="Delete" Invoked="Delete_Invoked" />
             <KeyboardAccelerator Key="Back" Invoked="Delete_Invoked" />
             <KeyboardAccelerator Key="F" Invoked="FullScreen_Invoked" />
@@ -130,7 +131,7 @@
                         <Button x:Name="CropButton"
                                 Style="{StaticResource HeaderIconButton}"
                                 Click="Crop_Click"
-                                ToolTipService.ToolTip="Crop photo">
+                                ToolTipService.ToolTip="Crop Photo (C)">
                             <TextBlock x:Name="CropIconText"
                                        Text=""
                                        FontFamily="Segoe Fluent Icons"
@@ -169,7 +170,7 @@
                         <Button x:Name="DeleteButton"
                                 Style="{StaticResource HeaderIconButton}"
                                 Click="Delete_Click"
-                                ToolTipService.ToolTip="Move to Recycle Bin">
+                                ToolTipService.ToolTip="Delete Photo (Del)">
                             <TextBlock Text="" FontFamily="Segoe Fluent Icons" FontSize="20" Foreground="#FF453A" />
                         </Button>
                     </StackPanel>

@@ -2,7 +2,7 @@
 
 A fast, native photo viewer for **macOS and Windows** with a consistent interface and workflow across both platforms.
 
-- **Current development version:** `1.2.0`
+- **Current release:** `1.2.0`
 - **Repository:** [github.com/GunayAnach/Glass-Photos-Viewer](https://github.com/GunayAnach/Glass-Photos-Viewer)
 - **Downloads:** [GitHub Releases](https://github.com/GunayAnach/Glass-Photos-Viewer/releases)
 - **Version history:** [CHANGELOG.md](CHANGELOG.md)

@@ -2,7 +2,7 @@
 
 All notable changes to **Glass Photo Viewer** are recorded here. macOS and Windows share one release version.
 
-## [1.2.0] - In development
+## [1.2.0] - 2026-10-06
 
 ### Added
 - Native Windows 10/11 x64 application built with WinUI 3.
@@ -30,7 +30,7 @@ All notable changes to **Glass Photo Viewer** are recorded here. macOS and Windo
 - The project and repository documentation now describe both supported platforms.
 - The Windows interface now follows the macOS visual hierarchy and interaction model.
 - The Windows information panel now matches the macOS file, EXIF, TIFF, and GPS fields when metadata is available.
-- Shortcut tooltips and controls are aligned across platforms: rename with `Enter`/`Return` or `F2`, info with `I`, fullscreen with `F` or `F11`, and rotation with `↑`/`↓`.
+- Shortcut tooltips and controls are aligned across platforms: crop with `C`, delete with `Del`, rename with `Enter`/`Return` or `F2`, info with `I`, fullscreen with `F` or `F11`, and rotation with `↑`/`↓`.
 - Windows installer upgrades now close the running viewer when necessary and automatically overwrite all existing private application files without prompting.
 
 ### Fixed
@@ -47,5 +47,5 @@ All notable changes to **Glass Photo Viewer** are recorded here. macOS and Windo
 
 - Incremental macOS releases covering photo navigation, asynchronous image loading and caching, rename, persistent rotation, Trash deletion, metadata, keyboard controls, file opening, and interface refinements.
 
-[1.2.0]: https://github.com/GunayAnach/Glass-Photos-Viewer/compare/v1.1.7...HEAD
+[1.2.0]: https://github.com/GunayAnach/Glass-Photos-Viewer/compare/v1.1.7...v1.2.0
 [1.1.7]: https://github.com/GunayAnach/Glass-Photos-Viewer/releases/tag/v1.1.7

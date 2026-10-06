@@ -124,6 +124,7 @@ public sealed class WindowsInterfaceParityTests
         Assert.Contains("Key=\"Enter\" Invoked=\"Rename_Invoked\"", xaml);
         Assert.Contains("Key=\"F2\" Invoked=\"RenameOnly_Invoked\"", xaml);
         Assert.Contains("Key=\"I\" Invoked=\"Info_Invoked\"", xaml);
+        Assert.Contains("Key=\"C\" Invoked=\"Crop_Invoked\"", xaml);
         Assert.Contains("Key=\"Delete\" Invoked=\"Delete_Invoked\"", xaml);
         Assert.Contains("Key=\"Back\" Invoked=\"Delete_Invoked\"", xaml);
         Assert.Contains("Key=\"F\" Invoked=\"FullScreen_Invoked\"", xaml);
@@ -144,6 +145,8 @@ public sealed class WindowsInterfaceParityTests
         Assert.Contains("ToolTipService.ToolTip=\"Rotate Counter-Clockwise (↑)\"", xaml);
         Assert.Contains("ToolTipService.ToolTip=\"Rotate Clockwise (↓)\"", xaml);
         Assert.Contains("ToolTipService.ToolTip=\"Info (I)\"", xaml);
+        Assert.Contains("ToolTipService.ToolTip=\"Crop Photo (C)\"", xaml);
+        Assert.Contains("ToolTipService.ToolTip=\"Delete Photo (Del)\"", xaml);
         Assert.Contains("ToolTipService.ToolTip=\"Full Screen (F / F11)\"", xaml);
     }
 

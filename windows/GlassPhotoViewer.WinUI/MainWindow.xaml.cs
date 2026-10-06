@@ -419,7 +419,7 @@ public sealed partial class MainWindow : Window
         CropOverlay.Visibility = Visibility.Collapsed;
         CropIconText.Text = "";
         CropIconText.ClearValue(TextBlock.ForegroundProperty);
-        ToolTipService.SetToolTip(CropButton, "Crop photo");
+        ToolTipService.SetToolTip(CropButton, "Crop Photo (C)");
         SetEditingControlsEnabled(_photos is not null);
     }
 
@@ -974,6 +974,13 @@ public sealed partial class MainWindow : Window
         if (KeyboardCommandIsBlocked || _photos is null) return;
         args.Handled = true;
         await DeleteCurrentAsync();
+    }
+
+    private void Crop_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (KeyboardCommandIsBlocked || _photos is null) return;
+        args.Handled = true;
+        BeginCrop();
     }
 
     private void Info_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
