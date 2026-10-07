@@ -86,8 +86,8 @@ public sealed class WindowsInterfaceParityTests
             AppContext.BaseDirectory,
             "../../../../../OSx/GlassPhotoViewer.xcodeproj/project.pbxproj")));
 
-        Assert.Contains("<Version>1.2.0</Version>", windowsProject);
-        Assert.Contains("MARKETING_VERSION = 1.2.0;", macProject);
+        Assert.Contains("<Version>1.2.1</Version>", windowsProject);
+        Assert.Contains("MARKETING_VERSION = 1.2.1;", macProject);
     }
 
     [Fact]
@@ -112,8 +112,9 @@ public sealed class WindowsInterfaceParityTests
         Assert.Contains("x:Name=\"FullScreenButton\"", xaml);
         Assert.Contains("x:Name=\"DeleteButton\"", xaml);
         Assert.True(
-            xaml.IndexOf("x:Name=\"DeleteButton\"", StringComparison.Ordinal) <
-            xaml.IndexOf("x:Name=\"FullScreenButton\"", StringComparison.Ordinal));
+            xaml.IndexOf("x:Name=\"FullScreenButton\"", StringComparison.Ordinal) <
+            xaml.IndexOf("x:Name=\"DeleteButton\"", StringComparison.Ordinal),
+            "Fullscreen must appear to the left of Delete so it is the rightmost toolbar action.");
         Assert.Contains("x:Name=\"CropButton\"", xaml);
         Assert.Contains("Click=\"Crop_Click\"", xaml);
         Assert.Contains("x:Name=\"CropOverlay\"", xaml);
@@ -135,6 +136,24 @@ public sealed class WindowsInterfaceParityTests
         Assert.Contains("Key=\"Escape\" Invoked=\"Escape_Invoked\"", xaml);
         Assert.Contains("Key=\"O\" Modifiers=\"Control\" Invoked=\"OpenFolder_Invoked\"", xaml);
         Assert.DoesNotContain("<CommandBar", xaml);
+    }
+
+    [Fact]
+    public void ToolbarPlacesFullscreenAtTheRightEdgeOnBothPlatforms()
+    {
+        var windowsXaml = File.ReadAllText(Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../GlassPhotoViewer.WinUI/MainWindow.xaml")));
+        var macSource = File.ReadAllText(Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../../OSx/GlassPhotoViewer/GlassPhotoViewerApp.swift")));
+
+        Assert.True(
+            windowsXaml.IndexOf("x:Name=\"FullScreenButton\"", StringComparison.Ordinal) <
+            windowsXaml.IndexOf("x:Name=\"DeleteButton\"", StringComparison.Ordinal));
+        Assert.True(
+            macSource.IndexOf("Button(action: onFullScreen)", StringComparison.Ordinal) <
+            macSource.IndexOf("Button(action: onDelete)", StringComparison.Ordinal));
     }
 
     [Fact]
