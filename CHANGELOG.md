@@ -1,0 +1,60 @@
+# Changelog
+
+All notable changes to **Glass Photo Viewer** are recorded here. macOS and Windows share one release version.
+
+## [Unreleased]
+
+### Changed
+- `Esc` now exits Glass Photo Viewer on macOS and Windows.
+- The Delete and Fullscreen toolbar buttons have swapped positions on both platforms.
+
+### Fixed
+- macOS now saves and restores the main window’s size and location through the stable `GlassPhotos.MainWindow` key, independent of SwiftUI’s generated autosave name.
+
+## [1.2.0] - 2026-10-06
+
+### Added
+- Native Windows 10/11 x64 application built with WinUI 3.
+- Matching SwiftUI and WinUI interfaces, including the welcome screen, header controls, image counter, inline rename, metadata sidebar, share, fullscreen, and deletion controls.
+- Interactive crop mode on macOS and Windows:
+  - Drag the crop area to reposition it.
+  - Drag any corner handle to resize it.
+  - Press the green tick or `Enter`/`Return` to crop and overwrite the current image.
+  - Press `Esc` to cancel.
+- Complete Windows keyboard controls matching the macOS application.
+- Simple current-user Windows installer with Open with and Default Apps registration for every supported image format.
+- Portable self-contained Windows ZIP distribution for no-install use.
+- Windows Share panel and Recycle Bin integration.
+- Repository link in the macOS Help menu and project documentation.
+- Universal Apple silicon/Intel macOS release packaging with macOS CI verification.
+- Automated Windows legacy-installer upgrade coverage, including process closure, stale-file cleanup, stable file associations, and window-placement migration.
+- Remembered window size and position on macOS and Windows, including safe restoration after monitor-layout changes.
+
+### Changed
+- Renamed the product and native projects from Glass Photos to Glass Photo Viewer.
+- Reorganized platform code under `OSx/` and `windows/`, with shared documentation and configuration at the repository root.
+- Renamed the macOS app bundle to `Glass Photo Viewer.app`, the Windows executable to `GlassPhotoViewer.exe`, and both Windows distribution artifacts to `Glass-Photo-Viewer-*`.
+- Kept the existing macOS bundle identifier, Windows installer AppId, file-association ProgID, and legacy window-position migration paths so upgrades preserve user settings and default-app choices.
+- macOS and Windows application versions are aligned at `1.2.0`.
+- The project and repository documentation now describe both supported platforms.
+- The Windows interface now follows the macOS visual hierarchy and interaction model.
+- The Windows information panel now matches the macOS file, EXIF, TIFF, and GPS fields when metadata is available.
+- Shortcut tooltips and controls are aligned across platforms: crop with `C`, delete with `Del`, rename with `Enter`/`Return` or `F2`, info with `I`, fullscreen with `F` or `F11`, and rotation with `↑`/`↓`.
+- Windows installer upgrades now close the running viewer when necessary and automatically overwrite all existing private application files without prompting.
+
+### Fixed
+- Renaming a file to its existing name on Windows is now treated as a successful no-op instead of reporting that the file already exists.
+- Windows portable builds now include the compiled WinUI PRI resources required at startup.
+
+## [1.1.7] - 2026
+
+### Fixed
+- Corrected the macOS application bundle signature and release packaging.
+- Added Gatekeeper launch and quarantine-removal guidance.
+
+## [1.1.1–1.1.6] - 2026
+
+- Incremental macOS releases covering photo navigation, asynchronous image loading and caching, rename, persistent rotation, Trash deletion, metadata, keyboard controls, file opening, and interface refinements.
+
+[1.2.0]: https://github.com/GunayAnach/Glass-Photos-Viewer/compare/v1.1.7...v1.2.0
+[1.1.7]: https://github.com/GunayAnach/Glass-Photos-Viewer/releases/tag/v1.1.7

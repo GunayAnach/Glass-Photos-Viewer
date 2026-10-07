@@ -1,0 +1,178 @@
+name: Glass Photo Viewer Windows build
+
+on:
+  push:
+    branches:
+      - main
+      - feat/windows-winui3-port
+    paths:
+      - "windows/**"
+      - "OSx/**"
+      - ".github/workflows/windows.yml"
+  pull_request:
+    paths:
+      - "windows/**"
+      - "OSx/**"
+      - ".github/workflows/windows.yml"
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Test cross-platform core
+        run: dotnet test windows/GlassPhotoViewer.Core.Tests/GlassPhotoViewer.Core.Tests.csproj --configuration Release
+
+      - name: Build WinUI app
+        run: dotnet build windows/GlassPhotoViewer.WinUI/GlassPhotoViewer.WinUI.csproj --configuration Release -p:Platform=x64
+
+      - name: Publish portable Windows build
+        shell: pwsh
+        run: ./windows/publish-windows.ps1 -Architecture x64
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Build Windows installer
+        shell: pwsh
+        run: ./windows/build-installer.ps1 -Architecture x64
+
+      - name: Test upgrade from legacy Glass Photos installer
+        shell: pwsh
+        run: ./windows/test-legacy-upgrade.ps1 -Architecture x64
+
+      - name: Smoke test portable app startup
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path "dist/Glass-Photo-Viewer-Windows-x64/GlassPhotoViewer.exe"
+          $process = Start-Process $exe -PassThru
+          Start-Sleep -Seconds 5
+          if ($process.HasExited) {
+            throw "Portable app exited during startup with code $($process.ExitCode)."
+          }
+          Stop-Process -Id $process.Id -Force
+
+      - name: Smoke test installer and file associations
+        shell: pwsh
+        run: |
+          $installer = Resolve-Path "dist/Glass-Photo-Viewer-Windows-x64-Setup.exe"
+          $install = Start-Process $installer -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-" -Wait -PassThru
+          if ($install.ExitCode -ne 0) {
+            throw "Installer exited with code $($install.ExitCode)."
+          }
+
+          $installedExe = Join-Path $env:LOCALAPPDATA "Programs/Glass Photo Viewer/GlassPhotoViewer.exe"
+          if (-not (Test-Path $installedExe)) {
+            throw "Installer did not create the expected application executable."
+          }
+
+          $openCommandKey = Get-Item "Registry::HKEY_CURRENT_USER\Software\Classes\GlassPhotos.Image\shell\open\command"
+          $openCommand = $openCommandKey.GetValue("")
+          if ($openCommand -notlike "*GlassPhotoViewer.exe*%1*") {
+            throw "The installed file-association command is invalid: $openCommand"
+          }
+
+          $jpgProgId = (Get-ItemProperty "Registry::HKEY_CURRENT_USER\Software\GlassPhotos\Capabilities\FileAssociations").'.jpg'
+          if ($jpgProgId -ne "GlassPhotos.Image") {
+            throw "The .jpg association was not registered."
+          }
+
+          Add-Type @"
+          using System;
+          using System.Runtime.InteropServices;
+          public static class WindowPlacementSmoke {
+              [StructLayout(LayoutKind.Sequential)]
+              public struct RECT { public int Left, Top, Right, Bottom; }
+              [DllImport("user32.dll", SetLastError = true)]
+              public static extern bool MoveWindow(IntPtr hWnd, int x, int y, int width, int height, bool repaint);
+              [DllImport("user32.dll")]
+              public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
+          }
+          "@
+
+          $process = Start-Process $installedExe -PassThru
+          Start-Sleep -Seconds 5
+          if ($process.HasExited) {
+            throw "Installed app exited during startup with code $($process.ExitCode)."
+          }
+          $process.Refresh()
+          if ($process.MainWindowHandle -eq [IntPtr]::Zero) {
+            throw "Installed app did not create a main window."
+          }
+          if (-not [WindowPlacementSmoke]::MoveWindow($process.MainWindowHandle, 120, 90, 640, 480, $true)) {
+            throw "Could not move and resize the installed app window."
+          }
+          Start-Sleep -Seconds 2
+          $process.CloseMainWindow() | Out-Null
+          if (-not $process.WaitForExit(10000)) {
+            Stop-Process -Id $process.Id -Force
+            throw "Installed app did not close cleanly after the placement change."
+          }
+
+          $process = Start-Process $installedExe -PassThru
+          Start-Sleep -Seconds 5
+          if ($process.HasExited) {
+            throw "Installed app exited while restoring its window placement."
+          }
+          $process.Refresh()
+          $restored = New-Object WindowPlacementSmoke+RECT
+          if (-not [WindowPlacementSmoke]::GetWindowRect($process.MainWindowHandle, [ref]$restored)) {
+            throw "Could not read the restored app window placement."
+          }
+          $restoredWidth = $restored.Right - $restored.Left
+          $restoredHeight = $restored.Bottom - $restored.Top
+          if ([Math]::Abs($restored.Left - 120) -gt 16 -or
+              [Math]::Abs($restored.Top - 90) -gt 16 -or
+              [Math]::Abs($restoredWidth - 640) -gt 16 -or
+              [Math]::Abs($restoredHeight - 480) -gt 16) {
+            throw "Window placement was not restored: $($restored.Left),$($restored.Top) ${restoredWidth}x${restoredHeight}."
+          }
+          Stop-Process -Id $process.Id -Force
+          Wait-Process -Id $process.Id -Timeout 10 -ErrorAction SilentlyContinue
+
+          # Verify an upgrade closes the running viewer and replaces even a read-only stale file.
+          $sourceAsset = Resolve-Path "dist/Glass-Photo-Viewer-Windows-x64/GlassPhotoViewer.deps.json"
+          $installedAsset = Join-Path $env:LOCALAPPDATA "Programs/Glass Photo Viewer/GlassPhotoViewer.deps.json"
+          $process = Start-Process $installedExe -PassThru
+          Start-Sleep -Seconds 5
+          if ($process.HasExited) {
+            throw "Installed app exited before the upgrade smoke test."
+          }
+          [System.IO.File]::WriteAllText($installedAsset, "stale installer-upgrade test file")
+          (Get-Item $installedAsset).IsReadOnly = $true
+
+          $upgrade = Start-Process $installer -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/NORESTARTAPPLICATIONS", "/SP-" -Wait -PassThru
+          if ($upgrade.ExitCode -ne 0) {
+            throw "Upgrade installer exited with code $($upgrade.ExitCode)."
+          }
+          $process.Refresh()
+          if (-not $process.HasExited) {
+            Stop-Process -Id $process.Id -Force
+            throw "Upgrade installer did not close the running viewer."
+          }
+          $sourceHash = (Get-FileHash $sourceAsset -Algorithm SHA256).Hash
+          $installedHash = (Get-FileHash $installedAsset -Algorithm SHA256).Hash
+          if ($installedHash -ne $sourceHash) {
+            throw "Upgrade installer did not overwrite the read-only stale application file."
+          }
+
+      - name: Upload portable ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: Glass-Photo-Viewer-Windows-x64
+          path: dist/Glass-Photo-Viewer-Windows-x64.zip
+          if-no-files-found: error
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Glass-Photo-Viewer-Windows-x64-Installer
+          path: dist/Glass-Photo-Viewer-Windows-x64-Setup.exe
+          if-no-files-found: error

@@ -2,5 +2,10 @@
 .xcode-build/
 .release-build/
 dist/
+**/bin/
+**/obj/
+.vs/
 .DS_Store
 *.xcuserstate
+**/xcuserdata/
+*.dmg
