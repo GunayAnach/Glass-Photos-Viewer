@@ -75,17 +75,17 @@ final class KeyboardCommandTests: XCTestCase {
         )
     }
 
-    func testMacToolbarPlacesFullScreenBeforeDeleteAndRoutesEscapeToExit() throws {
+    func testMacToolbarPlacesDeleteBeforeFullScreenAndRoutesEscapeToExit() throws {
         let sourceURL = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("GlassPhotoViewer/GlassPhotoViewerApp.swift")
         let source = try String(contentsOf: sourceURL, encoding: .utf8)
-        let fullScreenIndex = try XCTUnwrap(source.range(of: "Button(action: onFullScreen)")?.lowerBound)
         let deleteIndex = try XCTUnwrap(source.range(of: "Button(action: onDelete)")?.lowerBound)
+        let fullScreenIndex = try XCTUnwrap(source.range(of: "Button(action: onFullScreen)")?.lowerBound)
 
-        XCTAssertLessThan(fullScreenIndex, deleteIndex)
+        XCTAssertLessThan(deleteIndex, fullScreenIndex)
         XCTAssertTrue(source.contains("case .exitApplication:"))
         XCTAssertTrue(source.contains("NSApp.terminate(nil)"))
     }

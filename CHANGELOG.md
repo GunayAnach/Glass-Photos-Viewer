@@ -4,7 +4,7 @@ All notable changes to **Glass Photo Viewer** are recorded here. macOS and Windo
 
 ## [Unreleased]
 
-## [1.2.1] - 2026-10-07
+## [1.2.1] - 2026-10-08
 
 ### Changed
 - Fullscreen is the rightmost toolbar button on macOS and Windows; Delete is immediately to its left.
