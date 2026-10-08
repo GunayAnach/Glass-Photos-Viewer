@@ -112,9 +112,9 @@ public sealed class WindowsInterfaceParityTests
         Assert.Contains("x:Name=\"FullScreenButton\"", xaml);
         Assert.Contains("x:Name=\"DeleteButton\"", xaml);
         Assert.True(
-            xaml.IndexOf("x:Name=\"FullScreenButton\"", StringComparison.Ordinal) <
-            xaml.IndexOf("x:Name=\"DeleteButton\"", StringComparison.Ordinal),
-            "Fullscreen must appear to the left of Delete so it is the rightmost toolbar action.");
+            xaml.IndexOf("x:Name=\"DeleteButton\"", StringComparison.Ordinal) <
+            xaml.IndexOf("x:Name=\"FullScreenButton\"", StringComparison.Ordinal),
+            "Fullscreen must appear after Delete so it is the rightmost toolbar action.");
         Assert.Contains("x:Name=\"CropButton\"", xaml);
         Assert.Contains("Click=\"Crop_Click\"", xaml);
         Assert.Contains("x:Name=\"CropOverlay\"", xaml);
@@ -149,11 +149,11 @@ public sealed class WindowsInterfaceParityTests
             "../../../../../OSx/GlassPhotoViewer/GlassPhotoViewerApp.swift")));
 
         Assert.True(
-            windowsXaml.IndexOf("x:Name=\"FullScreenButton\"", StringComparison.Ordinal) <
-            windowsXaml.IndexOf("x:Name=\"DeleteButton\"", StringComparison.Ordinal));
+            windowsXaml.IndexOf("x:Name=\"DeleteButton\"", StringComparison.Ordinal) <
+            windowsXaml.IndexOf("x:Name=\"FullScreenButton\"", StringComparison.Ordinal));
         Assert.True(
-            macSource.IndexOf("Button(action: onFullScreen)", StringComparison.Ordinal) <
-            macSource.IndexOf("Button(action: onDelete)", StringComparison.Ordinal));
+            macSource.IndexOf("Button(action: onDelete)", StringComparison.Ordinal) <
+            macSource.IndexOf("Button(action: onFullScreen)", StringComparison.Ordinal));
     }
 
     [Fact]
