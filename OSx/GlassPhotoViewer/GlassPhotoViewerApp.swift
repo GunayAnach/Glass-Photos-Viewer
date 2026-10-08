@@ -1328,19 +1328,7 @@ struct TopHeader: View {
                 .help("Share Image")
                 .disabled(isCropping)
                 
-                Button(action: onDelete) {
-                    Image(systemName: "trash")
-                        .font(.title2)
-                        .foregroundStyle(.red)
-                        .padding(8)
-                        .background(.ultraThinMaterial)
-                        .cornerRadius(8)
-                }
-                .buttonStyle(.plain)
-                .help("Delete Photo (Del)")
-                .disabled(isCropping)
-
-                // Fullscreen button
+                // Fullscreen button comes after Delete so it is rightmost.
                 Button(action: onFullScreen) {
                     Image(systemName: "arrow.up.left.and.arrow.down.right")
                         .font(.title2)
@@ -1351,6 +1339,18 @@ struct TopHeader: View {
                 }
                 .buttonStyle(.plain)
                 .help("Full Screen (F / F11)")
+                .disabled(isCropping)
+
+                Button(action: onDelete) {
+                    Image(systemName: "trash")
+                        .font(.title2)
+                        .foregroundStyle(.red)
+                        .padding(8)
+                        .background(.ultraThinMaterial)
+                        .cornerRadius(8)
+                }
+                .buttonStyle(.plain)
+                .help("Delete Photo (Del)")
                 .disabled(isCropping)
             }
         }

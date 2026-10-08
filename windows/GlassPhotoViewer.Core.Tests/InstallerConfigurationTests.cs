@@ -48,9 +48,10 @@ public sealed class InstallerConfigurationTests
         var script = File.ReadAllText(InstallerScript);
 
         Assert.Contains("Software\\Classes\\GlassPhotos.Image\\shell\\open\\command", script);
-        Assert.Contains("{app}\\GlassPhotoViewer.exe", script);
-        Assert.Contains("%1", script);
-        Assert.Contains("uninsdeletekey", script);
+        Assert.Contains("SetupIconFile=..\\GlassPhotoViewer.WinUI\\Assets\\GlassPhotoViewer.ico", script);
+        Assert.Contains("UninstallDisplayIcon={app}\\GlassPhotoViewer.exe", script);
+        Assert.Contains("Software\\Classes\\GlassPhotos.Image\\DefaultIcon", script);
+        Assert.Contains("{app}\\GlassPhotoViewer.exe,0", script);
         Assert.Contains("Software\\RegisteredApplications", script);
     }
 
