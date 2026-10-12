@@ -116,8 +116,8 @@ public sealed class WindowsInterfaceParityTests
             AppContext.BaseDirectory,
             "../../../../../OSx/GlassPhotoViewer.xcodeproj/project.pbxproj")));
 
-        Assert.Contains("<Version>1.2.1</Version>", windowsProject);
-        Assert.Contains("MARKETING_VERSION = 1.2.1;", macProject);
+        Assert.Contains("<Version>1.2.2</Version>", windowsProject);
+        Assert.Contains("MARKETING_VERSION = 1.2.2;", macProject);
     }
 
     [Fact]

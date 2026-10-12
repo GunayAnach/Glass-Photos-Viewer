@@ -4,8 +4,7 @@ on:
   push:
     branches:
       - main
-      - feat/windows-winui3-port
-      - feat/photo-printing
+      - dev
     paths:
       - "OSx/**"
       - ".github/workflows/macos.yml"
