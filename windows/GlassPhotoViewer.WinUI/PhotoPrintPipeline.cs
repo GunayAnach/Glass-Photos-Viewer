@@ -2,8 +2,9 @@ using GlassPhotoViewer.Core;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
+using Microsoft.UI.Xaml.Printing;
 using Windows.Graphics.Printing;
-using Windows.Storage;
+using Windows.Graphics.Printing.OptionDetails;
 using WinRT.Interop;
 
 namespace GlassPhotoViewer.WinUI;
@@ -25,14 +26,14 @@ internal sealed class PhotoPrintPipeline
 
     public async Task ShowAsync()
     {
-        var file = await StorageFile.GetFileFromPathAsync(_imagePath);
+        var file = await Windows.Storage.StorageFile.GetFileFromPathAsync(_imagePath);
         using (var stream = await file.OpenReadAsync())
         {
             _image = new BitmapImage();
             await _image.SetSourceAsync(stream);
         }
 
-        _printManager = PrintManager.GetForWindow(_windowHandle);
+        _printManager = PrintManagerInterop.GetForWindow(_windowHandle);
         _document = new PrintDocument();
         _documentSource = _document.DocumentSource;
         _document.Paginate += Paginate;
