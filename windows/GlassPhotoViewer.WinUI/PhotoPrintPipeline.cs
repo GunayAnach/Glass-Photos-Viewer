@@ -54,7 +54,9 @@ internal sealed class PhotoPrintPipeline
     {
         var task = args.Request.CreatePrintTask("Print Photo", request => request.SetSource(_documentSource));
         task.Options.Orientation = PhotoPrintLayout.Orientation(_image!.PixelWidth, _image.PixelHeight)
-            == PrintOrientation.Landscape ? PrintOrientation.Landscape : PrintOrientation.Portrait;
+            == GlassPhotoViewer.Core.PrintOrientation.Landscape
+                ? Windows.Graphics.Printing.PrintOrientation.Landscape
+                : Windows.Graphics.Printing.PrintOrientation.Portrait;
     }
 
     private void Paginate(object? sender, PaginateEventArgs e)
