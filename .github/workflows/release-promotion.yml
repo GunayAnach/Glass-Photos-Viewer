@@ -113,7 +113,10 @@ jobs:
             prerelease=false
           fi
 
-          existing_id=$(gh api "repos/$GH_REPO/releases/tags/$tag" --jq '.id' 2>/dev/null || true)
+          existing_id=""
+          if release_json=$(gh api "repos/$GH_REPO/releases/tags/$tag" 2>/dev/null); then
+            existing_id=$(jq -r '.id // empty' <<< "$release_json")
+          fi
           if [[ -n "$existing_id" ]]; then
             gh api --method DELETE "repos/$GH_REPO/releases/$existing_id"
           fi
@@ -126,7 +129,10 @@ jobs:
             --notes "$notes" $( [[ "$prerelease" == true ]] && printf '%s' '--prerelease' )
 
           if [[ "$SOURCE_BRANCH" == "main" ]]; then
-            dev_id=$(gh api "repos/$GH_REPO/releases/tags/dev-latest" --jq '.id' 2>/dev/null || true)
+            dev_id=""
+            if dev_json=$(gh api "repos/$GH_REPO/releases/tags/dev-latest" 2>/dev/null); then
+              dev_id=$(jq -r '.id // empty' <<< "$dev_json")
+            fi
             if [[ -n "$dev_id" ]]; then
               gh api --method DELETE "repos/$GH_REPO/releases/$dev_id"
             fi
