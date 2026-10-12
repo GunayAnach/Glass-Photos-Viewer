@@ -614,6 +614,23 @@ final class ViewerModel: ObservableObject {
         }
     }
 
+    func printCurrentImage() {
+        guard let image = currentImage else { return }
+        let printInfo = NSPrintInfo.shared.copy() as! NSPrintInfo
+        printInfo.orientation = PhotoPrintLayout.orientation(
+            width: Double(image.size.width),
+            height: Double(image.size.height)
+        ) == .landscape ? .landscape : .portrait
+        printInfo.horizontalPagination = .fit
+        printInfo.verticalPagination = .fit
+        printInfo.scalingFactor = 1
+
+        let imageView = NSImageView(frame: NSRect(origin: .zero, size: image.size))
+        imageView.image = image
+        imageView.imageScaling = .scaleProportionallyUpOrDown
+        NSPrintOperation(view: imageView, printInfo: printInfo).run()
+    }
+
     // Decode the selected image off the main thread. The generation check keeps
     // a slow, stale request from replacing a newer selection.
     private func requestSelectedImage() {
@@ -1029,6 +1046,7 @@ struct Viewer: View {
                 InfoSidebar(
                     exifData: vm.currentExifData,
                     isLoading: vm.isLoadingExif,
+                    onPrint: { vm.printCurrentImage() },
                     onClose: { vm.showInfoSidebar = false }
                 )
                 .frame(width: 300)
@@ -1483,6 +1501,7 @@ extension Notification.Name {
 struct InfoSidebar: View {
     let exifData: [(String, Any)]
     let isLoading: Bool
+    let onPrint: () -> Void
     let onClose: () -> Void
     
     var body: some View {
@@ -1515,6 +1534,15 @@ struct InfoSidebar: View {
                     .foregroundStyle(.separator),
                 alignment: .bottom
             )
+
+            Button(action: onPrint) {
+                Label("Print", systemImage: "printer")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+            .help("Print Photo")
             
             // Content
             ScrollView {

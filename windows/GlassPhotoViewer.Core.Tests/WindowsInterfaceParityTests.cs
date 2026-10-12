@@ -4,6 +4,36 @@ namespace GlassPhotoViewer.Core.Tests;
 
 public sealed class WindowsInterfaceParityTests
 {
+    [Theory]
+    [InlineData(1200, 800, "Landscape")]
+    [InlineData(800, 1200, "Portrait")]
+    [InlineData(800, 800, "Portrait")]
+    public void PrintOrientationFollowsDisplayedPhotoDimensions(double width, double height, string expected)
+    {
+        Assert.Equal(expected, PhotoPrintLayout.Orientation(width, height).ToString());
+    }
+
+    [Fact]
+    public void PrintButtonIsInTheInformationSectionAndUsesNativePrintPipelines()
+    {
+        var xaml = File.ReadAllText(Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory, "../../../../GlassPhotoViewer.WinUI/MainWindow.xaml")));
+        var windowsCode = File.ReadAllText(Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory, "../../../../GlassPhotoViewer.WinUI/MainWindow.xaml.cs")));
+        var macCode = File.ReadAllText(Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory, "../../../../../OSx/GlassPhotoViewer/GlassPhotoViewerApp.swift")));
+
+        Assert.Contains("x:Name=\"PrintButton\"", xaml);
+        Assert.Contains("PrintPhoto_Click", xaml);
+        Assert.Contains("new PhotoPrintPipeline", windowsCode);
+        var printCode = File.ReadAllText(Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory, "../../../../GlassPhotoViewer.WinUI/PhotoPrintPipeline.cs")));
+        Assert.Contains("PrintManagerInterop.ShowPrintUIForWindowAsync", printCode);
+        Assert.Contains("PrintOrientation.Landscape", printCode);
+        Assert.Contains("NSPrintOperation", macCode);
+        Assert.Contains("printInfo.orientation", macCode);
+    }
+
     [Fact]
     public void AppIconIsConfiguredForTheExecutableAndRuntimeWindow()
     {

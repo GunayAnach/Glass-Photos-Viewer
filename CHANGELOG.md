@@ -4,6 +4,9 @@ All notable changes to **Glass Photo Viewer** are recorded here. macOS and Windo
 
 ## [Unreleased]
 
+### Added
+- Print the current photo from the information sidebar on macOS and Windows, using its displayed orientation and the operating system's print controls.
+
 ## [1.2.1] - 2026-10-08
 
 ### Changed
