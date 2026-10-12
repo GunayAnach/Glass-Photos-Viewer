@@ -1,0 +1,138 @@
+name: Glass Photo Viewer release promotion
+
+on:
+  workflow_run:
+    workflows:
+      - Glass Photo Viewer Windows build
+      - Glass Photo Viewer macOS build
+    types:
+      - completed
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: glass-photo-viewer-release-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      (github.event.workflow_run.head_branch == 'dev' || github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the exact source commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Find successful platform builds for this exact commit
+        id: builds
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+          SOURCE_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          runs=$(gh api "repos/$GH_REPO/actions/runs?head_sha=$SOURCE_SHA&per_page=100")
+          windows_run=$(jq -r --arg branch "$SOURCE_BRANCH" '[.workflow_runs[] | select(.name == "Glass Photo Viewer Windows build" and .head_branch == $branch and .conclusion == "success")][0].id // empty' <<< "$runs")
+          macos_run=$(jq -r --arg branch "$SOURCE_BRANCH" '[.workflow_runs[] | select(.name == "Glass Photo Viewer macOS build" and .head_branch == $branch and .conclusion == "success")][0].id // empty' <<< "$runs")
+          if [[ -z "$windows_run" || -z "$macos_run" ]]; then
+            echo "Both platform workflows have not succeeded for $SOURCE_BRANCH at $SOURCE_SHA; skipping promotion."
+            exit 0
+          fi
+          echo "windows_run=$windows_run" >> "$GITHUB_OUTPUT"
+          echo "macos_run=$macos_run" >> "$GITHUB_OUTPUT"
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: Download Windows portable build
+        if: steps.builds.outputs.ready == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: Glass-Photo-Viewer-Windows-x64
+          path: release-assets/windows
+          run-id: ${{ steps.builds.outputs.windows_run }}
+          github-token: ${{ github.token }}
+
+      - name: Download Windows installer
+        if: steps.builds.outputs.ready == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: Glass-Photo-Viewer-Windows-x64-Installer
+          path: release-assets/windows
+          run-id: ${{ steps.builds.outputs.windows_run }}
+          github-token: ${{ github.token }}
+
+      - name: Download universal macOS build
+        if: steps.builds.outputs.ready == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: Glass-Photo-Viewer-macOS
+          path: release-assets/macos
+          run-id: ${{ steps.builds.outputs.macos_run }}
+          github-token: ${{ github.token }}
+
+      - name: Verify artifacts and publish or promote release
+        if: steps.builds.outputs.ready == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+          SOURCE_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          windows_zip=$(find release-assets/windows -maxdepth 1 -name '*.zip' -print -quit)
+          windows_installer=$(find release-assets/windows -maxdepth 1 -name '*Setup.exe' -print -quit)
+          macos_zip=$(find release-assets/macos -maxdepth 1 -name '*.zip' -print -quit)
+          test -n "$windows_zip" && test -n "$windows_installer" && test -n "$macos_zip"
+          unzip -t "$windows_zip" >/dev/null
+          unzip -t "$macos_zip" >/dev/null
+          file "$windows_installer" | grep -q 'PE32'
+          shasum -a 256 "$windows_zip" "$windows_installer" "$macos_zip"
+
+          version=$(sed -n 's:.*<Version>\([^<]*\)</Version>.*:\1:p' windows/GlassPhotoViewer.WinUI/GlassPhotoViewer.WinUI.csproj | head -1)
+          if [[ -z "$version" ]]; then
+            echo "Could not read the Windows project version."
+            exit 1
+          fi
+
+          if [[ "$SOURCE_BRANCH" == "dev" ]]; then
+            tag="dev-latest"
+            title="Glass Photo Viewer Dev Build (${SOURCE_SHA:0:7})"
+            notes="Automated test build from dev commit $SOURCE_SHA. This rolling prerelease is replaced after each successful cross-platform build."
+            prerelease=true
+          else
+            tag="v$version"
+            title="Glass Photo Viewer v$version"
+            notes="Stable release built from main commit $SOURCE_SHA. See CHANGELOG.md for release notes."
+            prerelease=false
+          fi
+
+          existing_id=$(gh api "repos/$GH_REPO/releases/tags/$tag" --jq '.id' 2>/dev/null || true)
+          if [[ -n "$existing_id" ]]; then
+            gh api --method DELETE "repos/$GH_REPO/releases/$existing_id"
+          fi
+          if gh api "repos/$GH_REPO/git/ref/tags/$tag" >/dev/null 2>&1; then
+            gh api --method DELETE "repos/$GH_REPO/git/refs/tags/$tag"
+          fi
+
+          gh release create "$tag" "$windows_zip" "$windows_installer" "$macos_zip" \
+            --repo "$GH_REPO" --target "$SOURCE_SHA" --title "$title" \
+            --notes "$notes" $( [[ "$prerelease" == true ]] && printf '%s' '--prerelease' )
+
+          if [[ "$SOURCE_BRANCH" == "main" ]]; then
+            dev_id=$(gh api "repos/$GH_REPO/releases/tags/dev-latest" --jq '.id' 2>/dev/null || true)
+            if [[ -n "$dev_id" ]]; then
+              gh api --method DELETE "repos/$GH_REPO/releases/$dev_id"
+            fi
+            if gh api "repos/$GH_REPO/git/ref/tags/dev-latest" >/dev/null 2>&1; then
+              gh api --method DELETE "repos/$GH_REPO/git/refs/tags/dev-latest"
+            fi
+          fi
+
+          gh release view "$tag" --repo "$GH_REPO" --json tagName,name,isDraft,isPrerelease,assets

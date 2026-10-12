@@ -2,10 +2,13 @@
 
 All notable changes to **Glass Photo Viewer** are recorded here. macOS and Windows share one release version.
 
-## [Unreleased]
+## [1.2.2] - 2026-10-12
 
 ### Added
 - Print the current photo from the information sidebar on macOS and Windows, using its displayed orientation and the operating system's print controls.
+
+### Changed
+- Added a persistent `dev` integration branch for cross-platform test builds; successful dev builds publish a rolling prerelease, and a successful promotion to `main` publishes the stable release and removes the dev prerelease.
 
 ## [1.2.1] - 2026-10-08
 
