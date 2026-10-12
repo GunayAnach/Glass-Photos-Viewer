@@ -9,11 +9,13 @@ on:
       - "windows/**"
       - "OSx/**"
       - ".github/workflows/windows.yml"
+      - ".github/workflows/release-promotion.yml"
   pull_request:
     paths:
       - "windows/**"
       - "OSx/**"
       - ".github/workflows/windows.yml"
+      - ".github/workflows/release-promotion.yml"
 
 jobs:
   build:

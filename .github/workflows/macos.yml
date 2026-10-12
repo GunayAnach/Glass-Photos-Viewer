@@ -8,10 +8,12 @@ on:
     paths:
       - "OSx/**"
       - ".github/workflows/macos.yml"
+      - ".github/workflows/release-promotion.yml"
   pull_request:
     paths:
       - "OSx/**"
       - ".github/workflows/macos.yml"
+      - ".github/workflows/release-promotion.yml"
 
 permissions:
   contents: read
