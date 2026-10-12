@@ -11,6 +11,7 @@ using System.Runtime.InteropServices;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Graphics;
 using Windows.Graphics.Imaging;
+
 using Windows.Storage;
 using Windows.Storage.Pickers;
 using Windows.System;
@@ -40,6 +41,7 @@ public sealed partial class MainWindow : Window
     private readonly nint _windowHandle;
     private readonly IDataTransferManagerInterop _shareInterop;
     private readonly DataTransferManager _shareManager;
+
     private readonly string _windowPlacementPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "Glass Photo Viewer",
@@ -225,6 +227,7 @@ public sealed partial class MainWindow : Window
         DeleteButton.IsEnabled = true;
         InfoButton.IsEnabled = true;
         ShareButton.IsEnabled = true;
+        PrintButton.IsEnabled = true;
         FullScreenButton.IsEnabled = true;
         UpdateWindowTitle();
         _ = UpdateImageInfoAsync(path, generation);
@@ -757,6 +760,19 @@ public sealed partial class MainWindow : Window
 
     private void CloseInfo_Click(object sender, RoutedEventArgs e) =>
         InfoSidebar.Visibility = Visibility.Collapsed;
+
+    private async void PrintPhoto_Click(object sender, RoutedEventArgs e)
+    {
+        if (_photos is null) return;
+        try
+        {
+            await new PhotoPrintPipeline(_windowHandle, _photos.CurrentPath).ShowAsync();
+        }
+        catch (Exception exception)
+        {
+            await ShowErrorAsync("Could not print photo", exception.Message);
+        }
+    }
 
     private async Task UpdateImageInfoAsync(string path, long generation)
     {

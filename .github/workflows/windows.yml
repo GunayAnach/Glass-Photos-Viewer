@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - feat/windows-winui3-port
+      - feat/photo-printing
     paths:
       - "windows/**"
       - "OSx/**"

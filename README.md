@@ -50,6 +50,7 @@ Shared documentation, changelog, licensing, security policy, and CI configuratio
 - Persistent clockwise and counter-clockwise rotation.
 - Interactive cropping with a movable and resizable crop border.
 - Metadata sidebar with filename, path, size, dimensions, dates, camera details, and GPS data when available.
+- Print the current photo from the information sidebar using the native OS print flow and photo orientation.
 - Remembered window size and position across launches, with safe on-screen restoration.
 - Native sharing support.
 - Fullscreen viewing and fit-to-window/actual-size modes.

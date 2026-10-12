@@ -2,6 +2,12 @@ import XCTest
 @testable import GlassPhotoViewerCore
 
 final class KeyboardCommandTests: XCTestCase {
+    func testPrintLayoutFollowsDisplayedImageOrientation() {
+        XCTAssertEqual(PhotoPrintLayout.orientation(width: 1200, height: 800), .landscape)
+        XCTAssertEqual(PhotoPrintLayout.orientation(width: 800, height: 1200), .portrait)
+        XCTAssertEqual(PhotoPrintLayout.orientation(width: 800, height: 800), .portrait)
+    }
+
     func testReturnIsPassedToActiveDeleteConfirmationInsteadOfStartingRename() {
         XCTAssertEqual(
             KeyboardCommand.resolve(keyCode: 36, isRenaming: false, isDeleteConfirmationVisible: true),
@@ -88,6 +94,20 @@ final class KeyboardCommandTests: XCTestCase {
         XCTAssertLessThan(deleteIndex, fullScreenIndex)
         XCTAssertTrue(source.contains("case .exitApplication:"))
         XCTAssertTrue(source.contains("NSApp.terminate(nil)"))
+    }
+
+    func testPrintActionIsInInformationSidebarAndUsesNativePrintOperation() throws {
+        let sourceURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("GlassPhotoViewer/GlassPhotoViewerApp.swift")
+        let source = try String(contentsOf: sourceURL, encoding: .utf8)
+
+        let sidebar = try XCTUnwrap(source.range(of: "struct InfoSidebar: View"))
+        XCTAssertTrue(source[sidebar.lowerBound...].contains("Button(action: onPrint)"))
+        XCTAssertTrue(source.contains("NSPrintOperation"))
+        XCTAssertTrue(source.contains("printInfo.orientation"))
     }
 
     func testLetterShortcutsFollowTheTypedCharacterAndIgnoreCommandCombos() {

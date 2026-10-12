@@ -245,6 +245,7 @@
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
@@ -268,7 +269,19 @@
                     </Grid>
                 </Border>
 
-                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                <Button x:Name="PrintButton"
+                        Grid.Row="1"
+                        Margin="16,12,16,0"
+                        Padding="12,8"
+                        HorizontalAlignment="Stretch"
+                        Click="PrintPhoto_Click"
+                        ToolTipService.ToolTip="Print Photo">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
+                        <TextBlock Text="" FontFamily="Segoe Fluent Icons" FontSize="16" />
+                        <TextBlock Text="Print" />
+                    </StackPanel>
+                </Button>
+                <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
                     <StackPanel x:Name="InfoRows" Padding="16" Spacing="16" />
                 </ScrollViewer>
             </Grid>
