@@ -21,6 +21,54 @@ final class FileOperationsTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: original.path))
     }
 
+    func testRenameToCaseVariantSucceedsOnCaseSensitiveAndInsensitiveVolumes() throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+
+        let original = folder.appendingPathComponent("unchanged.jpg")
+        try Data("original contents".utf8).write(to: original)
+        let caseVariant = folder.appendingPathComponent("UNCHANGED.jpg")
+
+        let result = try FileOperations.rename(original, toBaseName: "UNCHANGED")
+
+        XCTAssertEqual(result, caseVariant)
+        XCTAssertEqual(try Data(contentsOf: result), Data("original contents".utf8))
+    }
+
+    func testSubmittingUnchangedNameSucceedsWithoutReplacingThePhoto() throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+
+        let original = folder.appendingPathComponent("unchanged.jpg")
+        let contents = Data("original contents".utf8)
+        try contents.write(to: original)
+
+        let result = try FileOperations.rename(original, toBaseName: "unchanged")
+
+        XCTAssertEqual(result, original)
+        XCTAssertEqual(try Data(contentsOf: original), contents)
+    }
+
+    func testRenameDoesNotOverwriteDifferentExistingDestination() throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+
+        let original = folder.appendingPathComponent("before.jpg")
+        let destination = folder.appendingPathComponent("after.jpg")
+        try Data("source".utf8).write(to: original)
+        try Data("destination".utf8).write(to: destination)
+
+        XCTAssertThrowsError(try FileOperations.rename(original, toBaseName: "after"))
+        XCTAssertEqual(try Data(contentsOf: original), Data("source".utf8))
+        XCTAssertEqual(try Data(contentsOf: destination), Data("destination".utf8))
+    }
+
     func testRenameRejectsEmptyNameAndLeavesFileUntouched() throws {
         let folder = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

@@ -124,8 +124,8 @@ public sealed class WindowsInterfaceParityTests
             AppContext.BaseDirectory,
             "../../../../../OSx/GlassPhotoViewer.xcodeproj/project.pbxproj")));
 
-        Assert.Contains("<Version>1.2.3</Version>", windowsProject);
-        Assert.Contains("MARKETING_VERSION = 1.2.3;", macProject);
+        Assert.Contains("<Version>1.2.4</Version>", windowsProject);
+        Assert.Contains("MARKETING_VERSION = 1.2.4;", macProject);
     }
 
     [Fact]
@@ -208,14 +208,23 @@ public sealed class WindowsInterfaceParityTests
     }
 
     [Fact]
-    public void EscapeClosesTheWindowsApplication()
+    public void EscapeCancelsRenameBeforeClosingTheWindowsApplication()
     {
         var windowCode = File.ReadAllText(Path.GetFullPath(Path.Combine(
             AppContext.BaseDirectory,
             "../../../../GlassPhotoViewer.WinUI/MainWindow.xaml.cs")));
 
-        Assert.Contains("private void Escape_Invoked", windowCode);
-        Assert.Contains("Close();", windowCode);
+        var escapeHandlerStart = windowCode.IndexOf("private void Escape_Invoked", StringComparison.Ordinal);
+        Assert.True(escapeHandlerStart >= 0);
+        var escapeHandler = windowCode[escapeHandlerStart..];
+        Assert.Contains("if (_isRenaming)", escapeHandler);
+        Assert.Contains("CancelRename();", escapeHandler);
+        Assert.Contains("Close();", escapeHandler);
+
+        var renameKeyHandlerStart = windowCode.IndexOf("private async void RenameTextBox_KeyDown", StringComparison.Ordinal);
+        Assert.True(renameKeyHandlerStart >= 0);
+        var renameKeyHandler = windowCode[renameKeyHandlerStart..];
+        Assert.DoesNotContain("VirtualKey.Escape", renameKeyHandler);
     }
 
     [Fact]

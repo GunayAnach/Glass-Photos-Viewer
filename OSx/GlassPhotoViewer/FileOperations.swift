@@ -61,11 +61,36 @@ enum FileOperations {
         if destination.standardizedFileURL == url.standardizedFileURL {
             return url
         }
+        if refersToSameFile(url, destination) {
+            let temporary = url.deletingLastPathComponent().appendingPathComponent(
+                ".glass-photo-viewer-rename-\(UUID().uuidString).\(url.pathExtension)"
+            )
+            try FileManager.default.moveItem(at: url, to: temporary)
+            do {
+                try FileManager.default.moveItem(at: temporary, to: destination)
+            } catch {
+                try? FileManager.default.moveItem(at: temporary, to: url)
+                throw error
+            }
+            return destination
+        }
         guard !FileManager.default.fileExists(atPath: destination.path) else {
             throw FileOperationsError.destinationExists
         }
         try FileManager.default.moveItem(at: url, to: destination)
         return destination
+    }
+
+    private static func refersToSameFile(_ firstURL: URL, _ secondURL: URL) -> Bool {
+        guard let firstIdentifier = (try? firstURL.resourceValues(
+            forKeys: [.fileResourceIdentifierKey]
+        ))?.fileResourceIdentifier as? NSObject,
+        let secondIdentifier = (try? secondURL.resourceValues(
+            forKeys: [.fileResourceIdentifierKey]
+        ))?.fileResourceIdentifier as? NSObject else {
+            return false
+        }
+        return firstIdentifier.isEqual(secondIdentifier)
     }
 
     static func rotate(_ url: URL, direction: RotationDirection) throws {

@@ -70,18 +70,22 @@ final class KeyboardCommandTests: XCTestCase {
         )
     }
 
-    func testEscapeClosesTheViewerWindowWithoutTerminatingTheApplication() {
+    func testEscapeCancelsRenameBeforeExitingTheApplication() {
         XCTAssertEqual(
             KeyboardCommand.resolve(keyCode: 53, isRenaming: false, isDeleteConfirmationVisible: false),
-            .closeWindow
+            .exitApplication
         )
         XCTAssertEqual(
-            KeyboardCommand.resolve(keyCode: 53, isRenaming: true, isDeleteConfirmationVisible: true),
-            .closeWindow
+            KeyboardCommand.resolve(keyCode: 53, isRenaming: true, isDeleteConfirmationVisible: false),
+            .cancelRename
+        )
+        XCTAssertEqual(
+            KeyboardCommand.resolve(keyCode: 53, isRenaming: false, isDeleteConfirmationVisible: true),
+            .passThrough
         )
     }
 
-    func testMacToolbarPlacesDeleteBeforeFullscreenAndEscapeClosesWindow() throws {
+    func testMacToolbarPlacesDeleteBeforeFullscreenAndEscapeExitsApplication() throws {
         let sourceURL = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -92,9 +96,8 @@ final class KeyboardCommandTests: XCTestCase {
         let fullScreenIndex = try XCTUnwrap(source.range(of: "Button(action: onFullScreen)")?.lowerBound)
 
         XCTAssertLessThan(deleteIndex, fullScreenIndex)
-        XCTAssertTrue(source.contains("case .closeWindow:"))
-        XCTAssertTrue(source.contains("performClose(nil)"))
-        XCTAssertFalse(source.contains("NSApp.terminate(nil)"))
+        XCTAssertTrue(source.contains("case .exitApplication:"))
+        XCTAssertTrue(source.contains("NSApp.terminate(nil)"))
         XCTAssertTrue(source.contains("Button(\"Print…\")"))
         XCTAssertTrue(source.contains(".keyboardShortcut(\"p\", modifiers: .command)"))
         XCTAssertTrue(source.contains(".help(\"Print Photo (⌘P)\")"))

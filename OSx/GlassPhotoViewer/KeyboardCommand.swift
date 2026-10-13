@@ -10,7 +10,8 @@ enum KeyboardCommand: Equatable {
     case toggleInfo
     case toggleFullScreen
     case delete
-    case closeWindow
+    case cancelRename
+    case exitApplication
     case unhandled
 
     static func resolve(
@@ -20,7 +21,11 @@ enum KeyboardCommand: Equatable {
         isRenaming: Bool,
         isDeleteConfirmationVisible: Bool
     ) -> KeyboardCommand {
-        if keyCode == 53 && !hasDisallowedModifiers { return .closeWindow }
+        if keyCode == 53 && !hasDisallowedModifiers {
+            if isRenaming { return .cancelRename }
+            if isDeleteConfirmationVisible { return .passThrough }
+            return .exitApplication
+        }
         if isDeleteConfirmationVisible || isRenaming || hasDisallowedModifiers { return .passThrough }
 
         switch keyCode {
