@@ -28,8 +28,16 @@ public sealed class WindowsInterfaceParityTests
         Assert.Contains("new PhotoPrintPipeline", windowsCode);
         var printCode = File.ReadAllText(Path.GetFullPath(Path.Combine(
             AppContext.BaseDirectory, "../../../../GlassPhotoViewer.WinUI/PhotoPrintPipeline.cs")));
-        Assert.Contains("PrintManagerInterop.ShowPrintUIForWindowAsync", printCode);
-        Assert.Contains("PrintOrientation.Landscape", printCode);
+        Assert.Contains("GetDefaultPrinter", printCode);
+        Assert.Contains("DocumentProperties", printCode);
+        Assert.Contains("DmInPrompt", printCode);
+        Assert.Contains("SetApartmentState(ApartmentState.STA)", printCode);
+        Assert.Contains("CreateDC", printCode);
+        Assert.DoesNotContain("ShowPrintUIForWindowAsync", printCode);
+        Assert.DoesNotContain("System.Windows.Forms.PrintDialog", printCode);
+        Assert.Contains("ExifOrientationMode.RespectExifOrientation", printCode);
+        Assert.Contains("decoder.OrientedPixelWidth > decoder.OrientedPixelHeight", printCode);
+        Assert.Contains("mode.Orientation = (short)(landscape ? 2 : 1)", printCode);
         Assert.Contains("NSPrintOperation", macCode);
         Assert.Contains("printInfo.orientation", macCode);
     }
@@ -116,8 +124,8 @@ public sealed class WindowsInterfaceParityTests
             AppContext.BaseDirectory,
             "../../../../../OSx/GlassPhotoViewer.xcodeproj/project.pbxproj")));
 
-        Assert.Contains("<Version>1.2.2</Version>", windowsProject);
-        Assert.Contains("MARKETING_VERSION = 1.2.2;", macProject);
+        Assert.Contains("<Version>1.2.3</Version>", windowsProject);
+        Assert.Contains("MARKETING_VERSION = 1.2.3;", macProject);
     }
 
     [Fact]

@@ -2,6 +2,12 @@
 
 All notable changes to **Glass Photo Viewer** are recorded here. macOS and Windows share one release version.
 
+## [1.2.3] - Unreleased
+
+### Fixed
+- Windows printing now opens the default printer driver's own settings UI, applies its settings to the print job, and bypasses the Windows 11 PrintManager UI that previously hung or closed the app.
+- Match initial print orientation to the EXIF-corrected photo view and fit the image within the printer's printable area.
+
 ## [1.2.2] - 2026-10-12
 
 ### Added
