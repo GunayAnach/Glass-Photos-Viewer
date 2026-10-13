@@ -39,6 +39,8 @@ struct GlassPhotoViewerApp: App {
             CommandGroup(after: .newItem) {
                 Button("Open Folder…") { vm.pickFolder() }
                     .keyboardShortcut("o", modifiers: .command)
+                Button("Print…") { vm.printCurrentImage() }
+                    .keyboardShortcut("p", modifiers: .command)
             }
             
             CommandGroup(after: .windowSize) {
@@ -628,7 +630,9 @@ final class ViewerModel: ObservableObject {
         let imageView = NSImageView(frame: NSRect(origin: .zero, size: image.size))
         imageView.image = image
         imageView.imageScaling = .scaleProportionallyUpOrDown
-        NSPrintOperation(view: imageView, printInfo: printInfo).run()
+        let printOperation = NSPrintOperation(view: imageView, printInfo: printInfo)
+        printOperation.showsPrintPanel = true
+        printOperation.run()
     }
 
     // Decode the selected image off the main thread. The generation check keeps
@@ -687,8 +691,8 @@ final class ViewerModel: ObservableObject {
                 isRenaming: self.isRenaming,
                 isDeleteConfirmationVisible: self.isDeleteConfirmationVisible
             )
-            if command == .exitApplication {
-                NSApp.terminate(nil)
+            if command == .closeWindow {
+                self.closeCurrentWindow()
                 return nil
             }
             if self.isCropping {
@@ -714,7 +718,7 @@ final class ViewerModel: ObservableObject {
             case .toggleInfo: self.toggleInfoSidebar(); return nil
             case .toggleFullScreen: self.toggleFullScreen(); return nil
             case .delete: self.confirmDeleteCurrentFile(); return nil
-            case .exitApplication: return nil
+            case .closeWindow: return nil
             case .unhandled:
                 return e
             }
@@ -722,6 +726,10 @@ final class ViewerModel: ObservableObject {
     }
     func stopKeyMonitor() {
         if let m = keyMonitor { NSEvent.removeMonitor(m); keyMonitor = nil }
+    }
+
+    private func closeCurrentWindow() {
+        (NSApp.keyWindow ?? NSApp.mainWindow)?.performClose(nil)
     }
     
     func handleOpen(urls: [URL]) {
@@ -1542,7 +1550,7 @@ struct InfoSidebar: View {
             .buttonStyle(.bordered)
             .padding(.horizontal, 16)
             .padding(.top, 12)
-            .help("Print Photo")
+            .help("Print Photo (⌘P)")
             
             // Content
             ScrollView {

@@ -70,18 +70,18 @@ final class KeyboardCommandTests: XCTestCase {
         )
     }
 
-    func testEscapeRequestsApplicationExitEvenDuringEditingStates() {
+    func testEscapeClosesTheViewerWindowWithoutTerminatingTheApplication() {
         XCTAssertEqual(
             KeyboardCommand.resolve(keyCode: 53, isRenaming: false, isDeleteConfirmationVisible: false),
-            .exitApplication
+            .closeWindow
         )
         XCTAssertEqual(
             KeyboardCommand.resolve(keyCode: 53, isRenaming: true, isDeleteConfirmationVisible: true),
-            .exitApplication
+            .closeWindow
         )
     }
 
-    func testMacToolbarPlacesDeleteBeforeFullScreenAndRoutesEscapeToExit() throws {
+    func testMacToolbarPlacesDeleteBeforeFullscreenAndEscapeClosesWindow() throws {
         let sourceURL = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -92,8 +92,13 @@ final class KeyboardCommandTests: XCTestCase {
         let fullScreenIndex = try XCTUnwrap(source.range(of: "Button(action: onFullScreen)")?.lowerBound)
 
         XCTAssertLessThan(deleteIndex, fullScreenIndex)
-        XCTAssertTrue(source.contains("case .exitApplication:"))
-        XCTAssertTrue(source.contains("NSApp.terminate(nil)"))
+        XCTAssertTrue(source.contains("case .closeWindow:"))
+        XCTAssertTrue(source.contains("performClose(nil)"))
+        XCTAssertFalse(source.contains("NSApp.terminate(nil)"))
+        XCTAssertTrue(source.contains("Button(\"Print…\")"))
+        XCTAssertTrue(source.contains(".keyboardShortcut(\"p\", modifiers: .command)"))
+        XCTAssertTrue(source.contains(".help(\"Print Photo (⌘P)\")"))
+        XCTAssertTrue(source.contains("printOperation.showsPrintPanel = true"))
     }
 
     func testPrintActionIsInInformationSidebarAndUsesNativePrintOperation() throws {

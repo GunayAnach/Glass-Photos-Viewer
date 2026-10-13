@@ -60,6 +60,7 @@
             <KeyboardAccelerator Key="F" Invoked="FullScreen_Invoked" />
             <KeyboardAccelerator Key="F11" Invoked="FullScreen_Invoked" />
             <KeyboardAccelerator Key="Escape" Invoked="Escape_Invoked" />
+            <KeyboardAccelerator Key="P" Modifiers="Control" Invoked="Print_Invoked" />
             <KeyboardAccelerator Key="O" Modifiers="Control" Invoked="OpenFolder_Invoked" />
         </Grid.KeyboardAccelerators>
         <Grid.ColumnDefinitions>
@@ -275,7 +276,7 @@
                         Padding="12,8"
                         HorizontalAlignment="Stretch"
                         Click="PrintPhoto_Click"
-                        ToolTipService.ToolTip="Print Photo">
+                        ToolTipService.ToolTip="Print Photo (Ctrl+P)">
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
                         <TextBlock Text="" FontFamily="Segoe Fluent Icons" FontSize="16" />
                         <TextBlock Text="Print" />

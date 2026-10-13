@@ -761,9 +761,11 @@ public sealed partial class MainWindow : Window
     private void CloseInfo_Click(object sender, RoutedEventArgs e) =>
         InfoSidebar.Visibility = Visibility.Collapsed;
 
-    private async void PrintPhoto_Click(object sender, RoutedEventArgs e)
+    private async void PrintPhoto_Click(object sender, RoutedEventArgs e) => await PrintCurrentPhotoAsync();
+
+    private async Task PrintCurrentPhotoAsync()
     {
-        if (_photos is null) return;
+        if (KeyboardCommandIsBlocked || _photos is null) return;
         try
         {
             await new PhotoPrintPipeline(_windowHandle, _photos.CurrentPath).ShowAsync();
@@ -1011,6 +1013,13 @@ public sealed partial class MainWindow : Window
         if (KeyboardCommandIsBlocked) return;
         args.Handled = true;
         ToggleFullScreen();
+    }
+
+    private async void Print_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (KeyboardCommandIsBlocked || _photos is null) return;
+        args.Handled = true;
+        await PrintCurrentPhotoAsync();
     }
 
     private void Escape_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)

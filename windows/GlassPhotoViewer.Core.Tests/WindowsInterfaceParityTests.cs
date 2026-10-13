@@ -172,6 +172,7 @@ public sealed class WindowsInterfaceParityTests
         Assert.Contains("Key=\"F\" Invoked=\"FullScreen_Invoked\"", xaml);
         Assert.Contains("Key=\"F11\" Invoked=\"FullScreen_Invoked\"", xaml);
         Assert.Contains("Key=\"Escape\" Invoked=\"Escape_Invoked\"", xaml);
+        Assert.Contains("Key=\"P\" Modifiers=\"Control\" Invoked=\"Print_Invoked\"", xaml);
         Assert.Contains("Key=\"O\" Modifiers=\"Control\" Invoked=\"OpenFolder_Invoked\"", xaml);
         Assert.DoesNotContain("<CommandBar", xaml);
     }
@@ -195,6 +196,18 @@ public sealed class WindowsInterfaceParityTests
     }
 
     [Fact]
+    public void PrintShortcutOpensTheDefaultPrinterSettingsWindow()
+    {
+        var windowCode = File.ReadAllText(Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../GlassPhotoViewer.WinUI/MainWindow.xaml.cs")));
+
+        Assert.Contains("private async void Print_Invoked", windowCode);
+        Assert.Contains("await PrintCurrentPhotoAsync()", windowCode);
+        Assert.Contains("private async Task PrintCurrentPhotoAsync()", windowCode);
+    }
+
+    [Fact]
     public void EscapeClosesTheWindowsApplication()
     {
         var windowCode = File.ReadAllText(Path.GetFullPath(Path.Combine(
@@ -212,6 +225,7 @@ public sealed class WindowsInterfaceParityTests
             AppContext.BaseDirectory,
             "../../../../GlassPhotoViewer.WinUI/MainWindow.xaml")));
 
+        Assert.Contains("ToolTipService.ToolTip=\"Print Photo (Ctrl+P)\"", xaml);
         Assert.Contains("ToolTipService.ToolTip=\"Rename (Enter / F2)\"", xaml);
         Assert.Contains("ToolTipService.ToolTip=\"Rotate Counter-Clockwise (↑)\"", xaml);
         Assert.Contains("ToolTipService.ToolTip=\"Rotate Clockwise (↓)\"", xaml);
