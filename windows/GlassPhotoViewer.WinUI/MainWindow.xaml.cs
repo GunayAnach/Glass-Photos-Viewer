@@ -323,11 +323,6 @@ public sealed partial class MainWindow : Window
             e.Handled = true;
             await CommitRenameAsync();
         }
-        else if (e.Key == VirtualKey.Escape)
-        {
-            e.Handled = true;
-            CancelRename();
-        }
     }
 
     private async void Delete_Click(object sender, RoutedEventArgs e) => await DeleteCurrentAsync();
@@ -1025,6 +1020,11 @@ public sealed partial class MainWindow : Window
     private void Escape_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
         args.Handled = true;
+        if (_isRenaming)
+        {
+            CancelRename();
+            return;
+        }
         Close();
     }
 

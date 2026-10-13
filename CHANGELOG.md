@@ -2,11 +2,18 @@
 
 All notable changes to **Glass Photo Viewer** are recorded here. macOS and Windows share one release version.
 
+## [1.2.4] - Unreleased
+
+### Fixed
+- Escape cancels an active filename edit; pressing Escape again exits the application.
+- Submitting a filename that resolves to the current photo, including a case-only alias on a case-insensitive volume, succeeds without a collision error or rewriting the file.
+- Keep distinct existing destination files protected from accidental overwrite.
+
 ## [1.2.3] - Unreleased
 
 ### Fixed
 - Windows printing now opens the default printer driver's own settings UI, applies its settings to the print job, and bypasses the Windows 11 PrintManager UI that previously hung or closed the app.
-- Add Ctrl+P on Windows and Command+P on macOS to open the native printer settings panel; Escape closes the current viewer window on macOS instead of quitting the app.
+- Add Ctrl+P on Windows and Command+P on macOS to open the native printer settings panel.
 - Match initial print orientation to the EXIF-corrected photo view and fit the image within the printer's printable area.
 
 ## [1.2.2] - 2026-10-12

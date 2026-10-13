@@ -691,8 +691,8 @@ final class ViewerModel: ObservableObject {
                 isRenaming: self.isRenaming,
                 isDeleteConfirmationVisible: self.isDeleteConfirmationVisible
             )
-            if command == .closeWindow {
-                self.closeCurrentWindow()
+            if command == .exitApplication {
+                NSApp.terminate(nil)
                 return nil
             }
             if self.isCropping {
@@ -718,7 +718,8 @@ final class ViewerModel: ObservableObject {
             case .toggleInfo: self.toggleInfoSidebar(); return nil
             case .toggleFullScreen: self.toggleFullScreen(); return nil
             case .delete: self.confirmDeleteCurrentFile(); return nil
-            case .closeWindow: return nil
+            case .cancelRename: self.cancelRenaming(); return nil
+            case .exitApplication: return nil
             case .unhandled:
                 return e
             }
@@ -728,10 +729,6 @@ final class ViewerModel: ObservableObject {
         if let m = keyMonitor { NSEvent.removeMonitor(m); keyMonitor = nil }
     }
 
-    private func closeCurrentWindow() {
-        (NSApp.keyWindow ?? NSApp.mainWindow)?.performClose(nil)
-    }
-    
     func handleOpen(urls: [URL]) {
         guard let first = urls.first else { return }
 

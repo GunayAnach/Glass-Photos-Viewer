@@ -58,7 +58,8 @@ enum FileOperations {
 
     static func rename(_ url: URL, toBaseName baseName: String) throws -> URL {
         let destination = try destinationURL(for: url, baseName: baseName)
-        if destination.standardizedFileURL == url.standardizedFileURL {
+        if destination.standardizedFileURL == url.standardizedFileURL
+            || refersToSameFile(url, destination) {
             return url
         }
         guard !FileManager.default.fileExists(atPath: destination.path) else {
@@ -66,6 +67,18 @@ enum FileOperations {
         }
         try FileManager.default.moveItem(at: url, to: destination)
         return destination
+    }
+
+    private static func refersToSameFile(_ firstURL: URL, _ secondURL: URL) -> Bool {
+        guard let firstIdentifier = (try? firstURL.resourceValues(
+            forKeys: [.fileResourceIdentifierKey]
+        ))?.fileResourceIdentifier as? NSObject,
+        let secondIdentifier = (try? secondURL.resourceValues(
+            forKeys: [.fileResourceIdentifierKey]
+        ))?.fileResourceIdentifier as? NSObject else {
+            return false
+        }
+        return firstIdentifier.isEqual(secondIdentifier)
     }
 
     static func rotate(_ url: URL, direction: RotationDirection) throws {
