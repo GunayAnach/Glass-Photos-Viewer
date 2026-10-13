@@ -58,9 +58,21 @@ enum FileOperations {
 
     static func rename(_ url: URL, toBaseName baseName: String) throws -> URL {
         let destination = try destinationURL(for: url, baseName: baseName)
-        if destination.standardizedFileURL == url.standardizedFileURL
-            || refersToSameFile(url, destination) {
+        if destination.standardizedFileURL == url.standardizedFileURL {
             return url
+        }
+        if refersToSameFile(url, destination) {
+            let temporary = url.deletingLastPathComponent().appendingPathComponent(
+                ".glass-photo-viewer-rename-\(UUID().uuidString).\(url.pathExtension)"
+            )
+            try FileManager.default.moveItem(at: url, to: temporary)
+            do {
+                try FileManager.default.moveItem(at: temporary, to: destination)
+            } catch {
+                try? FileManager.default.moveItem(at: temporary, to: url)
+                throw error
+            }
+            return destination
         }
         guard !FileManager.default.fileExists(atPath: destination.path) else {
             throw FileOperationsError.destinationExists

@@ -21,7 +21,7 @@ final class FileOperationsTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: original.path))
     }
 
-    func testRenameToCaseVariantOfSameFileIsSuccessfulOnCaseInsensitiveVolume() throws {
+    func testRenameToCaseVariantSucceedsOnCaseSensitiveAndInsensitiveVolumes() throws {
         let folder = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -30,14 +30,11 @@ final class FileOperationsTests: XCTestCase {
         let original = folder.appendingPathComponent("unchanged.jpg")
         try Data("original contents".utf8).write(to: original)
         let caseVariant = folder.appendingPathComponent("UNCHANGED.jpg")
-        guard FileManager.default.fileExists(atPath: caseVariant.path) else {
-            throw XCTSkip("The temporary volume is case-sensitive; a case-only rename is distinct there.")
-        }
 
         let result = try FileOperations.rename(original, toBaseName: "UNCHANGED")
 
-        XCTAssertEqual(result, original)
-        XCTAssertEqual(try Data(contentsOf: original), Data("original contents".utf8))
+        XCTAssertEqual(result, caseVariant)
+        XCTAssertEqual(try Data(contentsOf: result), Data("original contents".utf8))
     }
 
     func testSubmittingUnchangedNameSucceedsWithoutReplacingThePhoto() throws {

@@ -6,7 +6,7 @@ All notable changes to **Glass Photo Viewer** are recorded here. macOS and Windo
 
 ### Fixed
 - Escape cancels an active filename edit; pressing Escape again exits the application.
-- Submitting a filename that resolves to the current photo, including a case-only alias on a case-insensitive volume, succeeds without a collision error or rewriting the file.
+- Submitting the unchanged filename succeeds as a no-op; case-only renames work on case-insensitive volumes without a collision error or data loss.
 - Keep distinct existing destination files protected from accidental overwrite.
 
 ## [1.2.3] - Unreleased
