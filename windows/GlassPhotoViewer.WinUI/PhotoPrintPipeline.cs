@@ -67,7 +67,7 @@ internal sealed class PhotoPrintPipeline
     {
         var file = await StorageFile.GetFileFromPathAsync(path);
         using var input = await file.OpenReadAsync();
-        using var decoder = await BitmapDecoder.CreateAsync(input);
+        var decoder = await BitmapDecoder.CreateAsync(input);
         using var bitmap = await decoder.GetSoftwareBitmapAsync(
             BitmapPixelFormat.Bgra8,
             BitmapAlphaMode.Premultiplied,
