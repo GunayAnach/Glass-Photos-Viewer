@@ -7,11 +7,13 @@ on:
       - dev
     paths:
       - "OSx/**"
+      - "windows/**"
       - ".github/workflows/macos.yml"
       - ".github/workflows/release-promotion.yml"
   pull_request:
     paths:
       - "OSx/**"
+      - "windows/**"
       - ".github/workflows/macos.yml"
       - ".github/workflows/release-promotion.yml"
 

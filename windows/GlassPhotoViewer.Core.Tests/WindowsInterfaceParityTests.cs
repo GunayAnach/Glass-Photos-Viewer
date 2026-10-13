@@ -28,8 +28,16 @@ public sealed class WindowsInterfaceParityTests
         Assert.Contains("new PhotoPrintPipeline", windowsCode);
         var printCode = File.ReadAllText(Path.GetFullPath(Path.Combine(
             AppContext.BaseDirectory, "../../../../GlassPhotoViewer.WinUI/PhotoPrintPipeline.cs")));
-        Assert.Contains("PrintManagerInterop.ShowPrintUIForWindowAsync", printCode);
-        Assert.Contains("PrintOrientation.Landscape", printCode);
+        Assert.Contains("GetDefaultPrinter", printCode);
+        Assert.Contains("DocumentProperties", printCode);
+        Assert.Contains("DmInPrompt", printCode);
+        Assert.Contains("SetApartmentState(ApartmentState.STA)", printCode);
+        Assert.Contains("CreateDC", printCode);
+        Assert.DoesNotContain("ShowPrintUIForWindowAsync", printCode);
+        Assert.DoesNotContain("System.Windows.Forms.PrintDialog", printCode);
+        Assert.Contains("ExifOrientationMode.RespectExifOrientation", printCode);
+        Assert.Contains("decoder.OrientedPixelWidth > decoder.OrientedPixelHeight", printCode);
+        Assert.Contains("mode.Orientation = (short)(landscape ? 2 : 1)", printCode);
         Assert.Contains("NSPrintOperation", macCode);
         Assert.Contains("printInfo.orientation", macCode);
     }
@@ -116,8 +124,8 @@ public sealed class WindowsInterfaceParityTests
             AppContext.BaseDirectory,
             "../../../../../OSx/GlassPhotoViewer.xcodeproj/project.pbxproj")));
 
-        Assert.Contains("<Version>1.2.2</Version>", windowsProject);
-        Assert.Contains("MARKETING_VERSION = 1.2.2;", macProject);
+        Assert.Contains("<Version>1.2.3</Version>", windowsProject);
+        Assert.Contains("MARKETING_VERSION = 1.2.3;", macProject);
     }
 
     [Fact]
@@ -164,6 +172,7 @@ public sealed class WindowsInterfaceParityTests
         Assert.Contains("Key=\"F\" Invoked=\"FullScreen_Invoked\"", xaml);
         Assert.Contains("Key=\"F11\" Invoked=\"FullScreen_Invoked\"", xaml);
         Assert.Contains("Key=\"Escape\" Invoked=\"Escape_Invoked\"", xaml);
+        Assert.Contains("Key=\"P\" Modifiers=\"Control\" Invoked=\"Print_Invoked\"", xaml);
         Assert.Contains("Key=\"O\" Modifiers=\"Control\" Invoked=\"OpenFolder_Invoked\"", xaml);
         Assert.DoesNotContain("<CommandBar", xaml);
     }
@@ -187,6 +196,18 @@ public sealed class WindowsInterfaceParityTests
     }
 
     [Fact]
+    public void PrintShortcutOpensTheDefaultPrinterSettingsWindow()
+    {
+        var windowCode = File.ReadAllText(Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../GlassPhotoViewer.WinUI/MainWindow.xaml.cs")));
+
+        Assert.Contains("private async void Print_Invoked", windowCode);
+        Assert.Contains("await PrintCurrentPhotoAsync()", windowCode);
+        Assert.Contains("private async Task PrintCurrentPhotoAsync()", windowCode);
+    }
+
+    [Fact]
     public void EscapeClosesTheWindowsApplication()
     {
         var windowCode = File.ReadAllText(Path.GetFullPath(Path.Combine(
@@ -204,6 +225,7 @@ public sealed class WindowsInterfaceParityTests
             AppContext.BaseDirectory,
             "../../../../GlassPhotoViewer.WinUI/MainWindow.xaml")));
 
+        Assert.Contains("ToolTipService.ToolTip=\"Print Photo (Ctrl+P)\"", xaml);
         Assert.Contains("ToolTipService.ToolTip=\"Rename (Enter / F2)\"", xaml);
         Assert.Contains("ToolTipService.ToolTip=\"Rotate Counter-Clockwise (↑)\"", xaml);
         Assert.Contains("ToolTipService.ToolTip=\"Rotate Clockwise (↓)\"", xaml);
