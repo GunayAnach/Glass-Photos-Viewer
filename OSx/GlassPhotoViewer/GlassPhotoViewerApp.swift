@@ -845,6 +845,90 @@ struct ContentView: View {
     }
 }
 
+private struct ScrollWheelZoomMonitor: NSViewRepresentable {
+    typealias NSViewType = ViewportCoordinateView
+
+    let onScroll: (CGFloat, CGPoint, CGSize) -> Bool
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onScroll: onScroll)
+    }
+
+    func makeNSView(context: Context) -> ViewportCoordinateView {
+        let view = ViewportCoordinateView()
+        context.coordinator.view = view
+        context.coordinator.installMonitor()
+        return view
+    }
+
+    func updateNSView(_ nsView: ViewportCoordinateView, context: Context) {
+        context.coordinator.onScroll = onScroll
+        nsView.synchronizeViewportBounds()
+    }
+
+    static func dismantleNSView(_ nsView: ViewportCoordinateView, coordinator: Coordinator) {
+        coordinator.removeMonitor()
+    }
+
+    final class Coordinator {
+        weak var view: ViewportCoordinateView?
+        var onScroll: (CGFloat, CGPoint, CGSize) -> Bool
+        private var monitor: Any?
+
+        init(onScroll: @escaping (CGFloat, CGPoint, CGSize) -> Bool) {
+            self.onScroll = onScroll
+        }
+
+        func installMonitor() {
+            guard monitor == nil else { return }
+            monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+                guard let self,
+                      let view = self.view,
+                      let window = view.window,
+                      let eventWindow = event.window,
+                      eventWindow === window else { return event }
+
+                view.synchronizeViewportBounds()
+                let pointInViewport = view.convert(event.locationInWindow, from: nil)
+                let viewportSize = view.bounds.size
+                let viewportBounds = CGRect(origin: .zero, size: viewportSize)
+                guard viewportBounds.contains(pointInViewport) else { return event }
+
+                let delta = event.hasPreciseScrollingDeltas
+                    ? event.scrollingDeltaY / 10
+                    : (event.scrollingDeltaY > 0 ? 1 : (event.scrollingDeltaY < 0 ? -1 : 0))
+                guard delta != 0 else { return event }
+                let consumed = self.onScroll(delta, pointInViewport, viewportSize)
+                return consumed ? nil : event
+            }
+        }
+
+        func removeMonitor() {
+            guard let monitor else { return }
+            NSEvent.removeMonitor(monitor)
+            self.monitor = nil
+        }
+    }
+
+    final class ViewportCoordinateView: NSView {
+        override var isFlipped: Bool { true }
+
+        func synchronizeViewportBounds() {
+            let viewportBounds = CGRect(origin: .zero, size: frame.size)
+            if bounds != viewportBounds {
+                bounds = viewportBounds
+            }
+        }
+
+        override func layout() {
+            super.layout()
+            synchronizeViewportBounds()
+        }
+
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    }
+}
+
 struct Viewer: View {
     @EnvironmentObject var vm: ViewerModel
     @State private var isFullScreen = false
@@ -1006,6 +1090,7 @@ struct Viewer: View {
                                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                             }
                         }
+                        .frame(width: geo.size.width, height: geo.size.height)
                         .contentShape(Rectangle())
                         .gesture(DragGesture(minimumDistance: 20).onEnded { value in
                             // Only handle navigation gestures when not zoomed in
@@ -1014,6 +1099,77 @@ struct Viewer: View {
                                 if value.translation.width > 0 { vm.prev() }
                             }
                         })
+                        .overlay(alignment: .topLeading) {
+                            ScrollWheelZoomMonitor { scrollDelta, pointInViewport, viewportSize in
+                                guard !vm.isCropping, !vm.isRenaming,
+                                      PhotoZoomBehavior.isPointerInsideDisplayedImage(
+                                        point: pointInViewport,
+                                        imageSize: nsimg.size,
+                                        viewportSize: viewportSize,
+                                        scale: scale,
+                                        offset: offset,
+                                        fitToWindow: vm.fitToWindow
+                                      ) else { return false }
+
+                                let updatedScale = PhotoZoomBehavior.adjustedScale(
+                                    current: scale,
+                                    scrollDelta: scrollDelta
+                                )
+                                guard updatedScale != scale else { return false }
+
+                                if updatedScale <= PhotoZoomBehavior.minimumScale {
+                                    withAnimation(.easeOut(duration: 0.08)) {
+                                        scale = updatedScale
+                                        offset = .zero
+                                        lastOffset = .zero
+                                        lastScale = 1.0
+                                    }
+                                } else {
+                                    let updatedOffset = CGSize(
+                                        width: PhotoZoomBehavior.offsetForPointer(
+                                            currentOffset: offset.width,
+                                            currentScale: scale,
+                                            updatedScale: updatedScale,
+                                            pointerPosition: pointInViewport.x,
+                                            viewportCenter: viewportSize.width / 2
+                                        ),
+                                        height: PhotoZoomBehavior.offsetForPointer(
+                                            currentOffset: offset.height,
+                                            currentScale: scale,
+                                            updatedScale: updatedScale,
+                                            pointerPosition: pointInViewport.y,
+                                            viewportCenter: viewportSize.height / 2
+                                        )
+                                    )
+                                    let baseScale = vm.fitToWindow
+                                        ? min(viewportSize.width / nsimg.size.width, viewportSize.height / nsimg.size.height)
+                                        : 1
+                                    let displayedSize = CGSize(
+                                        width: nsimg.size.width * baseScale * updatedScale,
+                                        height: nsimg.size.height * baseScale * updatedScale
+                                    )
+                                    let anchoredOffset = CGSize(
+                                        width: PhotoZoomBehavior.clampedOffset(
+                                            updatedOffset.width,
+                                            viewportSize: viewportSize.width,
+                                            displayedImageSize: displayedSize.width
+                                        ),
+                                        height: PhotoZoomBehavior.clampedOffset(
+                                            updatedOffset.height,
+                                            viewportSize: viewportSize.height,
+                                            displayedImageSize: displayedSize.height
+                                        )
+                                    )
+                                    withAnimation(.easeOut(duration: 0.08)) {
+                                        scale = updatedScale
+                                        offset = anchoredOffset
+                                        lastOffset = anchoredOffset
+                                    }
+                                }
+                                return true
+                            }
+                            .frame(width: geo.size.width, height: geo.size.height)
+                        }
 
                             if vm.isCropping {
                                 CropOverlay(
@@ -1059,14 +1215,11 @@ struct Viewer: View {
             }
         }
         .background(WindowFullScreenObserver(isFullScreen: $isFullScreen))
-        .onChange(of: vm.index) {
-            // Reset zoom when changing images
-            withAnimation(.easeOut(duration: 0.2)) {
-                scale = 1.0
-                offset = .zero
-                lastOffset = .zero
-                lastScale = 1.0
-            }
+        .onChange(of: vm.files[safe: vm.index]) {
+            resetZoom()
+        }
+        .onChange(of: vm.currentImage.map { ObjectIdentifier($0) }) {
+            resetZoom()
         }
         .onChange(of: vm.isCropping) { _, cropping in
             if cropping {
@@ -1079,19 +1232,37 @@ struct Viewer: View {
 
     }
     
+    private func resetZoom() {
+        withAnimation(.easeOut(duration: 0.2)) {
+            scale = PhotoZoomBehavior.minimumScale
+            offset = .zero
+            lastOffset = .zero
+            lastScale = 1.0
+        }
+    }
+
     private func constrainOffsetToBounds(imageSize: NSSize, viewSize: CGSize) {
+        guard imageSize.width > 0, imageSize.height > 0 else { return }
+        let fitScale = vm.fitToWindow
+            ? min(viewSize.width / imageSize.width, viewSize.height / imageSize.height)
+            : 1
         let scaledImageSize = CGSize(
-            width: imageSize.width * scale,
-            height: imageSize.height * scale
+            width: imageSize.width * fitScale * scale,
+            height: imageSize.height * fitScale * scale
         )
-        
-        let maxOffsetX = max(0, (scaledImageSize.width - viewSize.width) / 2)
-        let maxOffsetY = max(0, (scaledImageSize.height - viewSize.height) / 2)
         
         withAnimation(.easeOut(duration: 0.3)) {
             offset = CGSize(
-                width: offset.width.clamped(to: -maxOffsetX...maxOffsetX),
-                height: offset.height.clamped(to: -maxOffsetY...maxOffsetY)
+                width: PhotoZoomBehavior.clampedOffset(
+                    offset.width,
+                    viewportSize: viewSize.width,
+                    displayedImageSize: scaledImageSize.width
+                ),
+                height: PhotoZoomBehavior.clampedOffset(
+                    offset.height,
+                    viewportSize: viewSize.height,
+                    displayedImageSize: scaledImageSize.height
+                )
             )
             lastOffset = offset
         }

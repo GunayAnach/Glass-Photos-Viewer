@@ -124,8 +124,8 @@ public sealed class WindowsInterfaceParityTests
             AppContext.BaseDirectory,
             "../../../../../OSx/GlassPhotoViewer.xcodeproj/project.pbxproj")));
 
-        Assert.Contains("<Version>1.2.4</Version>", windowsProject);
-        Assert.Contains("MARKETING_VERSION = 1.2.4;", macProject);
+        Assert.Contains("<Version>1.2.5</Version>", windowsProject);
+        Assert.Contains("MARKETING_VERSION = 1.2.5;", macProject);
     }
 
     [Fact]
@@ -242,6 +242,44 @@ public sealed class WindowsInterfaceParityTests
         Assert.Contains("ToolTipService.ToolTip=\"Crop Photo (C)\"", xaml);
         Assert.Contains("ToolTipService.ToolTip=\"Delete Photo (Del)\"", xaml);
         Assert.Contains("ToolTipService.ToolTip=\"Full Screen (F / F11)\"", xaml);
+    }
+
+    [Fact]
+    public void MouseWheelOverPhotoIsWiredToZoomOnBothPlatforms()
+    {
+        var projectRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../.."));
+        var xaml = File.ReadAllText(Path.Combine(projectRoot, "windows/GlassPhotoViewer.WinUI/MainWindow.xaml"));
+        var windowsCode = File.ReadAllText(Path.Combine(projectRoot, "windows/GlassPhotoViewer.WinUI/MainWindow.xaml.cs"));
+        var macCode = File.ReadAllText(Path.Combine(projectRoot, "OSx/GlassPhotoViewer/GlassPhotoViewerApp.swift"));
+
+        Assert.DoesNotContain("PointerWheelChanged=\"PhotoViewport_PointerWheelChanged\"", xaml);
+        Assert.Contains("PointerWheelChangedEvent", windowsCode);
+        Assert.Contains("handledEventsToo: true", windowsCode);
+        Assert.Contains("Properties.MouseWheelDelta / 120.0", windowsCode);
+        Assert.Contains("PhotoZoomBehavior.IsPointerInsideDisplayedImage", windowsCode);
+        Assert.Contains("PhotoZoomBehavior.ClampedOffset", windowsCode);
+        Assert.DoesNotContain("ClampedAnchorOffset", windowsCode);
+        Assert.Contains("let pointInViewport = view.convert(event.locationInWindow, from: nil)", macCode);
+        Assert.Contains("onScroll(delta, pointInViewport, viewportSize)", macCode);
+        Assert.Contains("ViewportCoordinateView", macCode);
+        Assert.Contains("synchronizeViewportBounds()", macCode);
+        Assert.Contains("let viewportBounds = CGRect(origin: .zero, size: frame.size)", macCode);
+        Assert.Contains("let viewportSize = view.bounds.size", macCode);
+        Assert.Contains("PhotoZoomBehavior.clampedOffset", macCode);
+        Assert.DoesNotContain("clampedAnchorOffset", macCode);
+        Assert.Contains(".overlay(alignment: .topLeading)", macCode);
+        Assert.Contains("point: pointInViewport", macCode);
+        Assert.Contains("PhotoZoomBehavior.OffsetForPointer", windowsCode);
+        Assert.Contains("PhotoZoomBehavior.AdjustedScale", windowsCode);
+        Assert.Contains("KeyboardCommandIsBlocked", windowsCode);
+        Assert.Contains("CompositeTransform", windowsCode);
+        Assert.Contains("ScrollWheelZoomMonitor", macCode);
+        Assert.Contains("scrollingDeltaY", macCode);
+        Assert.Contains("PhotoZoomBehavior.isPointerInsideDisplayedImage", macCode);
+        Assert.Contains("PhotoZoomBehavior.offsetForPointer", macCode);
+        Assert.Contains("PhotoZoomBehavior.adjustedScale", macCode);
+        Assert.Contains("return consumed ? nil : event", macCode);
+        Assert.Contains("vm.currentImage.map { ObjectIdentifier($0) }", macCode);
     }
 
     [Fact]

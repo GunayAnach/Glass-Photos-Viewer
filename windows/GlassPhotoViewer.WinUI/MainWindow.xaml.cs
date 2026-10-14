@@ -56,6 +56,9 @@ public sealed partial class MainWindow : Window
     private bool _isRenaming;
     private bool _isFullScreen;
     private bool _isFitToWindow = true;
+    private double _zoomScale = PhotoZoomBehavior.MinimumScale;
+    private double _zoomOffsetX;
+    private double _zoomOffsetY;
     private bool _isDeleteConfirmationVisible;
     private bool _isCropping;
     private bool _isSavingCrop;
@@ -67,6 +70,10 @@ public sealed partial class MainWindow : Window
     public MainWindow(string? initialPath)
     {
         InitializeComponent();
+        PhotoViewport.AddHandler(
+            UIElement.PointerWheelChangedEvent,
+            new PointerEventHandler(PhotoViewport_PointerWheelChanged),
+            handledEventsToo: true);
         _initialPath = initialPath;
         _windowHandle = WindowNative.GetWindowHandle(this);
         _appWindow = AppWindow.GetFromWindowId(Win32Interop.GetWindowIdFromWindow(_windowHandle));
@@ -214,6 +221,7 @@ public sealed partial class MainWindow : Window
         if (generation != _loadGeneration) return;
 
         PhotoImage.Source = bitmap;
+        ResetPhotoZoom();
         WelcomePanel.Visibility = Visibility.Collapsed;
         TopHeader.Visibility = Visibility.Visible;
         FileNameText.Text = Path.GetFileName(path);
@@ -397,6 +405,7 @@ public sealed partial class MainWindow : Window
         CancelRename();
         _isFitToWindow = true;
         PhotoImage.Stretch = Stretch.Uniform;
+        ResetPhotoZoom();
         InfoSidebar.Visibility = Visibility.Collapsed;
         _cropRect = new NormalizedCropRect(0.1, 0.1, 0.8, 0.8);
         _isCropping = true;
@@ -508,7 +517,89 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void PhotoViewport_SizeChanged(object sender, SizeChangedEventArgs e) => UpdateCropOverlay();
+    private void PhotoViewport_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        UpdatePhotoViewportClip();
+        ApplyPhotoZoomTransform();
+        UpdateCropOverlay();
+    }
+
+    private void UpdatePhotoViewportClip()
+    {
+        var width = PhotoViewport.ActualWidth;
+        var height = PhotoViewport.ActualHeight;
+        PhotoViewport.Clip = width > 0 && height > 0
+            ? new RectangleGeometry { Rect = new Windows.Foundation.Rect(0, 0, width, height) }
+            : null;
+    }
+
+    private void PhotoViewport_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
+    {
+        if (KeyboardCommandIsBlocked || _photos is null || PhotoImage.Source is not BitmapImage image ||
+            image.PixelWidth <= 0 || image.PixelHeight <= 0) return;
+
+        var pointer = e.GetCurrentPoint(PhotoViewport).Position;
+        var viewportWidth = PhotoViewport.ActualWidth;
+        var viewportHeight = PhotoViewport.ActualHeight;
+        if (!PhotoZoomBehavior.IsPointerInsideDisplayedImage(
+                pointer.X, pointer.Y,
+                image.PixelWidth, image.PixelHeight,
+                viewportWidth, viewportHeight,
+                _zoomScale, _zoomOffsetX, _zoomOffsetY,
+                _isFitToWindow)) return;
+
+        var scrollSteps = e.GetCurrentPoint(PhotoViewport).Properties.MouseWheelDelta / 120.0;
+        if (scrollSteps == 0) return;
+
+        var updatedScale = PhotoZoomBehavior.AdjustedScale(_zoomScale, scrollSteps);
+        if (updatedScale == _zoomScale) return;
+
+        if (updatedScale <= PhotoZoomBehavior.MinimumScale)
+        {
+            _zoomOffsetX = 0;
+            _zoomOffsetY = 0;
+        }
+        else
+        {
+            _zoomOffsetX = PhotoZoomBehavior.OffsetForPointer(
+                _zoomOffsetX, _zoomScale, updatedScale, pointer.X, viewportWidth / 2);
+            _zoomOffsetY = PhotoZoomBehavior.OffsetForPointer(
+                _zoomOffsetY, _zoomScale, updatedScale, pointer.Y, viewportHeight / 2);
+
+            var baseScale = _isFitToWindow
+                ? Math.Min(viewportWidth / image.PixelWidth, viewportHeight / image.PixelHeight)
+                : 1;
+            var displayedWidth = image.PixelWidth * baseScale * updatedScale;
+            var displayedHeight = image.PixelHeight * baseScale * updatedScale;
+            _zoomOffsetX = PhotoZoomBehavior.ClampedOffset(_zoomOffsetX, viewportWidth, displayedWidth);
+            _zoomOffsetY = PhotoZoomBehavior.ClampedOffset(_zoomOffsetY, viewportHeight, displayedHeight);
+        }
+
+        _zoomScale = updatedScale;
+        ApplyPhotoZoomTransform();
+        e.Handled = true;
+    }
+
+    private void ApplyPhotoZoomTransform()
+    {
+        PhotoImage.RenderTransform = new CompositeTransform
+        {
+            CenterX = PhotoViewport.ActualWidth / 2,
+            CenterY = PhotoViewport.ActualHeight / 2,
+            ScaleX = _zoomScale,
+            ScaleY = _zoomScale,
+            TranslateX = _zoomOffsetX,
+            TranslateY = _zoomOffsetY
+        };
+    }
+
+    private void ResetPhotoZoom()
+    {
+        _zoomScale = PhotoZoomBehavior.MinimumScale;
+        _zoomOffsetX = 0;
+        _zoomOffsetY = 0;
+        ApplyPhotoZoomTransform();
+    }
 
     private Windows.Foundation.Rect GetDisplayedImageBounds()
     {
@@ -917,6 +1008,7 @@ public sealed partial class MainWindow : Window
         CancelCrop();
         CancelRename();
         PhotoImage.Source = null;
+        ResetPhotoZoom();
         WelcomePanel.Visibility = Visibility.Visible;
         TopHeader.Visibility = Visibility.Collapsed;
         InfoSidebar.Visibility = Visibility.Collapsed;
