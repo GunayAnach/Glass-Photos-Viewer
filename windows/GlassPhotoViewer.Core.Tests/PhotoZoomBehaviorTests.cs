@@ -72,4 +72,20 @@ public sealed class PhotoZoomBehaviorTests
         Assert.Equal(100, PhotoZoomBehavior.ClampedOffset(300, viewportSize: 100, displayedImageSize: 300));
         Assert.Equal(0, PhotoZoomBehavior.ClampedOffset(30, viewportSize: 100, displayedImageSize: 80));
     }
+
+    [Fact]
+    public void MouseDragMovesZoomedImageByPointerDelta()
+    {
+        Assert.Equal(40, PhotoZoomBehavior.OffsetAfterDrag(
+            currentOffset: 0, dragDelta: 40, viewportSize: 200, displayedImageSize: 400));
+    }
+
+    [Fact]
+    public void MouseDragCannotPanPastImageEdgesOrPanAnAxisWithoutOverflow()
+    {
+        Assert.Equal(100, PhotoZoomBehavior.OffsetAfterDrag(
+            currentOffset: 90, dragDelta: 50, viewportSize: 200, displayedImageSize: 400));
+        Assert.Equal(0, PhotoZoomBehavior.OffsetAfterDrag(
+            currentOffset: 0, dragDelta: 50, viewportSize: 300, displayedImageSize: 200));
+    }
 }

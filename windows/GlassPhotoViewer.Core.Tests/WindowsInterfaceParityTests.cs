@@ -283,6 +283,26 @@ public sealed class WindowsInterfaceParityTests
     }
 
     [Fact]
+    public void MouseDragPansZoomedPhotosOnBothPlatforms()
+    {
+        var projectRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../.."));
+        var xaml = File.ReadAllText(Path.Combine(projectRoot, "windows/GlassPhotoViewer.WinUI/MainWindow.xaml"));
+        var windowsCode = File.ReadAllText(Path.Combine(projectRoot, "windows/GlassPhotoViewer.WinUI/MainWindow.xaml.cs"));
+        var macCode = File.ReadAllText(Path.Combine(projectRoot, "OSx/GlassPhotoViewer/GlassPhotoViewerApp.swift"));
+
+        Assert.Contains("PointerPressed=\"PhotoViewport_PointerPressed\"", xaml);
+        Assert.Contains("PointerMoved=\"PhotoViewport_PointerMoved\"", xaml);
+        Assert.Contains("PointerReleased=\"PhotoViewport_PointerReleased\"", xaml);
+        Assert.Contains("PointerCanceled=\"PhotoViewport_PointerCanceled\"", xaml);
+        Assert.Contains("PointerCaptureLost=\"PhotoViewport_PointerCaptureLost\"", xaml);
+        Assert.Contains("Properties.IsLeftButtonPressed", windowsCode);
+        Assert.Contains("PhotoViewport.CapturePointer", windowsCode);
+        Assert.Contains("PhotoZoomBehavior.OffsetAfterDrag", windowsCode);
+        Assert.Contains("_zoomScale <= PhotoZoomBehavior.MinimumScale", windowsCode);
+        Assert.Contains("PhotoZoomBehavior.offsetAfterDrag", macCode);
+    }
+
+    [Fact]
     public void WindowsInfoPanelRequestsMacMetadataFields()
     {
         var windowCode = File.ReadAllText(Path.GetFullPath(Path.Combine(

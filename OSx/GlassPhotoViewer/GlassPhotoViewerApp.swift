@@ -1000,9 +1000,10 @@ struct Viewer: View {
                                             DragGesture()
                                                 .onChanged { value in
                                                     if scale > 1.0 {
-                                                        offset = CGSize(
-                                                            width: lastOffset.width + value.translation.width,
-                                                            height: lastOffset.height + value.translation.height
+                                                        offset = pannedOffset(
+                                                            translation: value.translation,
+                                                            imageSize: nsimg.size,
+                                                            viewportSize: geo.size
                                                         )
                                                     }
                                                 }
@@ -1054,9 +1055,10 @@ struct Viewer: View {
                                                 DragGesture()
                                                     .onChanged { value in
                                                         if scale > 1.0 {
-                                                            offset = CGSize(
-                                                                width: lastOffset.width + value.translation.width,
-                                                                height: lastOffset.height + value.translation.height
+                                                            offset = pannedOffset(
+                                                                translation: value.translation,
+                                                                imageSize: nsimg.size,
+                                                                viewportSize: geo.size
                                                             )
                                                         }
                                                     }
@@ -1092,6 +1094,7 @@ struct Viewer: View {
                         }
                         .frame(width: geo.size.width, height: geo.size.height)
                         .contentShape(Rectangle())
+                        .help("Scroll to zoom; drag to pan when zoomed")
                         .gesture(DragGesture(minimumDistance: 20).onEnded { value in
                             // Only handle navigation gestures when not zoomed in
                             if scale <= 1.0 && !vm.isCropping {
@@ -1266,6 +1269,31 @@ struct Viewer: View {
             )
             lastOffset = offset
         }
+    }
+
+    private func pannedOffset(translation: CGSize, imageSize: NSSize, viewportSize: CGSize) -> CGSize {
+        guard imageSize.width > 0, imageSize.height > 0 else { return .zero }
+        let baseScale = vm.fitToWindow
+            ? min(viewportSize.width / imageSize.width, viewportSize.height / imageSize.height)
+            : 1
+        let displayedSize = CGSize(
+            width: imageSize.width * baseScale * scale,
+            height: imageSize.height * baseScale * scale
+        )
+        return CGSize(
+            width: PhotoZoomBehavior.offsetAfterDrag(
+                currentOffset: lastOffset.width,
+                dragDelta: translation.width,
+                viewportSize: viewportSize.width,
+                displayedImageSize: displayedSize.width
+            ),
+            height: PhotoZoomBehavior.offsetAfterDrag(
+                currentOffset: lastOffset.height,
+                dragDelta: translation.height,
+                viewportSize: viewportSize.height,
+                displayedImageSize: displayedSize.height
+            )
+        )
     }
 }
 

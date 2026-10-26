@@ -36,6 +36,20 @@ public enum PhotoZoomBehavior {
         return min(max(offset, -maximumOffset), maximumOffset)
     }
 
+    public static func offsetAfterDrag(
+        currentOffset: CGFloat,
+        dragDelta: CGFloat,
+        viewportSize: CGFloat,
+        displayedImageSize: CGFloat
+    ) -> CGFloat {
+        guard currentOffset.isFinite, dragDelta.isFinite else { return 0 }
+        return clampedOffset(
+            currentOffset + dragDelta,
+            viewportSize: viewportSize,
+            displayedImageSize: displayedImageSize
+        )
+    }
+
     public static func isPointerInsideDisplayedImage(
         point: CGPoint,
         imageSize: CGSize,

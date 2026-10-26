@@ -73,4 +73,37 @@ final class PhotoZoomBehaviorTests: XCTestCase {
         XCTAssertEqual(PhotoZoomBehavior.clampedOffset(300, viewportSize: 100, displayedImageSize: 300), 100)
         XCTAssertEqual(PhotoZoomBehavior.clampedOffset(30, viewportSize: 100, displayedImageSize: 80), 0)
     }
+
+    func testMouseDragMovesZoomedImageByPointerDelta() {
+        XCTAssertEqual(
+            PhotoZoomBehavior.offsetAfterDrag(
+                currentOffset: 0,
+                dragDelta: 40,
+                viewportSize: 200,
+                displayedImageSize: 400
+            ),
+            40
+        )
+    }
+
+    func testMouseDragCannotPanPastImageEdgesOrPanAnAxisWithoutOverflow() {
+        XCTAssertEqual(
+            PhotoZoomBehavior.offsetAfterDrag(
+                currentOffset: 90,
+                dragDelta: 50,
+                viewportSize: 200,
+                displayedImageSize: 400
+            ),
+            100
+        )
+        XCTAssertEqual(
+            PhotoZoomBehavior.offsetAfterDrag(
+                currentOffset: 0,
+                dragDelta: 50,
+                viewportSize: 300,
+                displayedImageSize: 200
+            ),
+            0
+        )
+    }
 }

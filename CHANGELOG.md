@@ -6,6 +6,7 @@ All notable changes to **Glass Photo Viewer** are recorded here. macOS and Windo
 
 ### Added
 - Scroll over a photo with the mouse wheel to zoom in and out on macOS and Windows; zoom stays between fit scale and 500% and resets when the selected photo changes.
+- Drag a zoomed photo with the left mouse button to pan and inspect other areas; panning stays within the image edges on macOS and Windows.
 
 ## [1.2.4] - 2026-10-13
 

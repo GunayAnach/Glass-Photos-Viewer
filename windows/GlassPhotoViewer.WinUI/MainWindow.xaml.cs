@@ -59,6 +59,11 @@ public sealed partial class MainWindow : Window
     private double _zoomScale = PhotoZoomBehavior.MinimumScale;
     private double _zoomOffsetX;
     private double _zoomOffsetY;
+    private bool _isPhotoPanning;
+    private uint? _photoPanPointerId;
+    private Windows.Foundation.Point _photoPanStartPoint;
+    private double _photoPanStartOffsetX;
+    private double _photoPanStartOffsetY;
     private bool _isDeleteConfirmationVisible;
     private bool _isCropping;
     private bool _isSavingCrop;
@@ -533,6 +538,94 @@ public sealed partial class MainWindow : Window
             : null;
     }
 
+    private void PhotoViewport_PointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        if (KeyboardCommandIsBlocked || _photos is null ||
+            _zoomScale <= PhotoZoomBehavior.MinimumScale ||
+            PhotoImage.Source is not BitmapImage image || image.PixelWidth <= 0 || image.PixelHeight <= 0)
+            return;
+
+        var point = e.GetCurrentPoint(PhotoViewport);
+        if (!point.Properties.IsLeftButtonPressed ||
+            !PhotoZoomBehavior.IsPointerInsideDisplayedImage(
+                point.Position.X,
+                point.Position.Y,
+                image.PixelWidth,
+                image.PixelHeight,
+                PhotoViewport.ActualWidth,
+                PhotoViewport.ActualHeight,
+                _zoomScale,
+                _zoomOffsetX,
+                _zoomOffsetY,
+                _isFitToWindow))
+            return;
+
+        _isPhotoPanning = true;
+        _photoPanPointerId = e.Pointer.PointerId;
+        _photoPanStartPoint = point.Position;
+        _photoPanStartOffsetX = _zoomOffsetX;
+        _photoPanStartOffsetY = _zoomOffsetY;
+        PhotoViewport.CapturePointer(e.Pointer);
+        e.Handled = true;
+    }
+
+    private void PhotoViewport_PointerMoved(object sender, PointerRoutedEventArgs e)
+    {
+        if (!_isPhotoPanning || _photoPanPointerId != e.Pointer.PointerId ||
+            PhotoImage.Source is not BitmapImage image)
+            return;
+
+        var point = e.GetCurrentPoint(PhotoViewport).Position;
+        var viewportWidth = PhotoViewport.ActualWidth;
+        var viewportHeight = PhotoViewport.ActualHeight;
+        var displayedSize = GetDisplayedPhotoSize(image, _zoomScale);
+        _zoomOffsetX = PhotoZoomBehavior.OffsetAfterDrag(
+            _photoPanStartOffsetX,
+            point.X - _photoPanStartPoint.X,
+            viewportWidth,
+            displayedSize.Width);
+        _zoomOffsetY = PhotoZoomBehavior.OffsetAfterDrag(
+            _photoPanStartOffsetY,
+            point.Y - _photoPanStartPoint.Y,
+            viewportHeight,
+            displayedSize.Height);
+        ApplyPhotoZoomTransform();
+        e.Handled = true;
+    }
+
+    private void PhotoViewport_PointerReleased(object sender, PointerRoutedEventArgs e)
+    {
+        if (_photoPanPointerId != e.Pointer.PointerId) return;
+        PhotoViewport.ReleasePointerCapture(e.Pointer);
+        StopPhotoPanning();
+        e.Handled = true;
+    }
+
+    private void PhotoViewport_PointerCanceled(object sender, PointerRoutedEventArgs e) =>
+        StopPhotoPanning(e.Pointer.PointerId);
+
+    private void PhotoViewport_PointerCaptureLost(object sender, PointerRoutedEventArgs e) =>
+        StopPhotoPanning(e.Pointer.PointerId);
+
+    private void StopPhotoPanning(uint? pointerId = null)
+    {
+        if (pointerId is not null && _photoPanPointerId != pointerId) return;
+        _isPhotoPanning = false;
+        _photoPanPointerId = null;
+    }
+
+    private Windows.Foundation.Size GetDisplayedPhotoSize(BitmapImage image, double zoomScale)
+    {
+        var viewportWidth = PhotoViewport.ActualWidth;
+        var viewportHeight = PhotoViewport.ActualHeight;
+        var baseScale = _isFitToWindow
+            ? Math.Min(viewportWidth / image.PixelWidth, viewportHeight / image.PixelHeight)
+            : 1;
+        return new Windows.Foundation.Size(
+            image.PixelWidth * baseScale * zoomScale,
+            image.PixelHeight * baseScale * zoomScale);
+    }
+
     private void PhotoViewport_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
     {
         if (KeyboardCommandIsBlocked || _photos is null || PhotoImage.Source is not BitmapImage image ||
@@ -595,6 +688,9 @@ public sealed partial class MainWindow : Window
 
     private void ResetPhotoZoom()
     {
+        var wasPanning = _isPhotoPanning;
+        StopPhotoPanning();
+        if (wasPanning) PhotoViewport.ReleasePointerCaptures();
         _zoomScale = PhotoZoomBehavior.MinimumScale;
         _zoomOffsetX = 0;
         _zoomOffsetY = 0;

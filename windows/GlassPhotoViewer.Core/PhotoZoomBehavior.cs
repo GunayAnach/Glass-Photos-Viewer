@@ -36,6 +36,16 @@ public static class PhotoZoomBehavior
         return Math.Clamp(offset, -maximumOffset, maximumOffset);
     }
 
+    public static double OffsetAfterDrag(
+        double currentOffset,
+        double dragDelta,
+        double viewportSize,
+        double displayedImageSize)
+    {
+        if (!double.IsFinite(currentOffset) || !double.IsFinite(dragDelta)) return 0;
+        return ClampedOffset(currentOffset + dragDelta, viewportSize, displayedImageSize);
+    }
+
     public static bool IsPointerInsideDisplayedImage(
         double pointX,
         double pointY,
