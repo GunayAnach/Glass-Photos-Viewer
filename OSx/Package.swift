@@ -17,7 +17,7 @@ let package = Package(
                 "GlassPhotoViewer.entitlements",
                 "GlassPhotoViewerApp.swift"
             ],
-            sources: ["FileOperations.swift", "ImagePipeline.swift", "KeyboardCommand.swift", "WindowPersistence.swift", "PhotoPrinting.swift"]
+            sources: ["FileOperations.swift", "ImagePipeline.swift", "KeyboardCommand.swift", "WindowPersistence.swift", "PhotoPrinting.swift", "PhotoZoomBehavior.swift"]
         ),
         .testTarget(
             name: "GlassPhotoViewerCoreTests",

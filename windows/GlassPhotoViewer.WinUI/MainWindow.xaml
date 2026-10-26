@@ -178,7 +178,13 @@
                 </Grid>
             </Border>
 
-            <Grid x:Name="PhotoViewport" Grid.Row="1" Background="Black" SizeChanged="PhotoViewport_SizeChanged">
+            <Grid x:Name="PhotoViewport" Grid.Row="1" Background="Black" SizeChanged="PhotoViewport_SizeChanged"
+                  PointerPressed="PhotoViewport_PointerPressed"
+                  PointerMoved="PhotoViewport_PointerMoved"
+                  PointerReleased="PhotoViewport_PointerReleased"
+                  PointerCanceled="PhotoViewport_PointerCanceled"
+                  PointerCaptureLost="PhotoViewport_PointerCaptureLost"
+                  ToolTipService.ToolTip="Scroll to zoom; drag to pan when zoomed">
                 <Image x:Name="PhotoImage" Stretch="Uniform" />
 
                 <Canvas x:Name="CropOverlay"
